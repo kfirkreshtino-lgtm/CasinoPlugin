@@ -1,0 +1,34 @@
+name: CasinoPlugin
+version: '${project.version}'
+main: com.kfir.casino.CasinoPlugin
+api-version: '26.1'
+authors: [kfir]
+description: A full casino for Paper servers - Blackjack, Roulette and a pluggable Poker module.
+depend: [Vault]
+softdepend: []
+
+commands:
+  casino:
+    description: Casino administration and player commands.
+    usage: |
+      /casino spawn - build the casino at world spawn
+      /casino remove - remove the built casino
+      /casino station add <type> - register the block you are looking at
+      /casino station remove - unregister the block you are looking at
+      /casino station list - list registered stations
+      /casino reload - reload config.yml
+      /casino chips buy <amount> - buy chips with currency
+      /casino chips sell <amount> - sell chips for currency
+      /casino balance - show your chip balance
+      /casino leave - leave your current game and refund open bets
+    aliases: [cas]
+
+permissions:
+  casino.admin:
+    description: Build, remove and configure the casino.
+    default: op
+    children:
+      casino.use: true
+  casino.use:
+    description: Play casino games and exchange chips.
+    default: true

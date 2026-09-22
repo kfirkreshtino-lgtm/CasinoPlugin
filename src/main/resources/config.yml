@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# CasinoPlugin configuration
+# ---------------------------------------------------------------------------
+
+structure:
+  # Where the casino is built, relative to the world spawn point.
+  # The offset points at the north-west-bottom corner of the building.
+  offset:
+    x: 12
+    y: 0
+    z: 12
+  # Interior lighting, floating station labels, and the decorative roulette ring.
+  spawn-labels: true
+
+economy:
+  # Currency cost of ONE chip. 2.0 means 100 chips costs 200 currency.
+  chip-price: 1.0
+  # Percentage kept by the house when a player sells chips back. 5.0 = 5% fee.
+  sell-fee-percent: 0.0
+  # Largest single buy/sell a player may request.
+  max-exchange: 100000
+
+blackjack:
+  min-bet: 5
+  max-bet: 500
+  # Number of 52-card decks in the shoe.
+  decks: 6
+  # Shoe is reshuffled at the start of a hand once this fraction is left.
+  reshuffle-at: 0.25
+  # Natural 21 payout. 1.5 is the standard 3:2. Use 1.2 for 6:5.
+  blackjack-payout: 1.5
+  # false = dealer stands on soft 17, true = dealer hits soft 17.
+  dealer-hits-soft-17: false
+  # Ticks between each dealt card during the dealer's turn.
+  deal-delay-ticks: 14
+
+roulette:
+  min-bet: 5
+  max-bet: 500
+  # EUROPEAN (single zero) or AMERICAN (0 and 00).
+  wheel: EUROPEAN
+  # Seconds the betting window stays open after the first bet of a round.
+  bet-window-seconds: 30
+  # Length of the spin animation in ticks.
+  spin-ticks: 60
+  # Stake sizes offered in the bet menu.
+  stake-steps: [5, 10, 25, 50, 100, 250]
+
+poker:
+  # Leave false until the poker module is installed. Poker stations will tell
+  # players the game is unavailable instead of opening an empty menu.
+  enabled: false
+
+storage:
+  # Seconds between background saves of chip balances.
+  autosave-seconds: 120
+
+messages:
+  prefix: '<gold>[Casino] </gold>'

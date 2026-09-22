@@ -1,0 +1,162 @@
+package com.kfir.casino;
+
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.util.Vector;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Typed view over config.yml. Rebuilt on every reload so nothing holds a stale value. */
+public final class CasinoConfig {
+
+    private final Vector structureOffset;
+    private final boolean spawnLabels;
+
+    private final double chipPrice;
+    private final double sellFeePercent;
+    private final long maxExchange;
+
+    private final long blackjackMinBet;
+    private final long blackjackMaxBet;
+    private final int blackjackDecks;
+    private final double blackjackReshuffleAt;
+    private final double blackjackPayout;
+    private final boolean dealerHitsSoft17;
+    private final int dealDelayTicks;
+
+    private final long rouletteMinBet;
+    private final long rouletteMaxBet;
+    private final String rouletteWheel;
+    private final int betWindowSeconds;
+    private final int spinTicks;
+    private final List<Long> stakeSteps;
+
+    private final boolean pokerEnabled;
+    private final int autosaveSeconds;
+    private final String prefix;
+
+    public CasinoConfig(FileConfiguration c) {
+        this.structureOffset = new Vector(
+                c.getInt("structure.offset.x", 12),
+                c.getInt("structure.offset.y", 0),
+                c.getInt("structure.offset.z", 12));
+        this.spawnLabels = c.getBoolean("structure.spawn-labels", true);
+
+        this.chipPrice = Math.max(0.0001, c.getDouble("economy.chip-price", 1.0));
+        this.sellFeePercent = Math.min(Math.max(c.getDouble("economy.sell-fee-percent", 0.0), 0.0), 100.0);
+        this.maxExchange = Math.max(1, c.getLong("economy.max-exchange", 100000));
+
+        this.blackjackMinBet = Math.max(1, c.getLong("blackjack.min-bet", 5));
+        this.blackjackMaxBet = Math.max(blackjackMinBet, c.getLong("blackjack.max-bet", 500));
+        this.blackjackDecks = Math.max(1, c.getInt("blackjack.decks", 6));
+        this.blackjackReshuffleAt = c.getDouble("blackjack.reshuffle-at", 0.25);
+        this.blackjackPayout = Math.max(0.0, c.getDouble("blackjack.blackjack-payout", 1.5));
+        this.dealerHitsSoft17 = c.getBoolean("blackjack.dealer-hits-soft-17", false);
+        this.dealDelayTicks = Math.max(1, c.getInt("blackjack.deal-delay-ticks", 14));
+
+        this.rouletteMinBet = Math.max(1, c.getLong("roulette.min-bet", 5));
+        this.rouletteMaxBet = Math.max(rouletteMinBet, c.getLong("roulette.max-bet", 500));
+        this.rouletteWheel = c.getString("roulette.wheel", "EUROPEAN");
+        this.betWindowSeconds = Math.max(5, c.getInt("roulette.bet-window-seconds", 30));
+        this.spinTicks = Math.max(20, c.getInt("roulette.spin-ticks", 60));
+
+        List<Long> steps = new ArrayList<>();
+        for (int value : c.getIntegerList("roulette.stake-steps")) {
+            if (value > 0) {
+                steps.add((long) value);
+            }
+        }
+        if (steps.isEmpty()) {
+            steps = List.of(5L, 10L, 25L, 50L, 100L, 250L);
+        }
+        this.stakeSteps = List.copyOf(steps);
+
+        this.pokerEnabled = c.getBoolean("poker.enabled", false);
+        this.autosaveSeconds = Math.max(15, c.getInt("storage.autosave-seconds", 120));
+        this.prefix = c.getString("messages.prefix", "<gold>[Casino] </gold>");
+    }
+
+    public Vector structureOffset() {
+        return structureOffset.clone();
+    }
+
+    public boolean spawnLabels() {
+        return spawnLabels;
+    }
+
+    public double chipPrice() {
+        return chipPrice;
+    }
+
+    public double sellFeePercent() {
+        return sellFeePercent;
+    }
+
+    public long maxExchange() {
+        return maxExchange;
+    }
+
+    public long blackjackMinBet() {
+        return blackjackMinBet;
+    }
+
+    public long blackjackMaxBet() {
+        return blackjackMaxBet;
+    }
+
+    public int blackjackDecks() {
+        return blackjackDecks;
+    }
+
+    public double blackjackReshuffleAt() {
+        return blackjackReshuffleAt;
+    }
+
+    public double blackjackPayout() {
+        return blackjackPayout;
+    }
+
+    public boolean dealerHitsSoft17() {
+        return dealerHitsSoft17;
+    }
+
+    public int dealDelayTicks() {
+        return dealDelayTicks;
+    }
+
+    public long rouletteMinBet() {
+        return rouletteMinBet;
+    }
+
+    public long rouletteMaxBet() {
+        return rouletteMaxBet;
+    }
+
+    public String rouletteWheel() {
+        return rouletteWheel;
+    }
+
+    public int betWindowSeconds() {
+        return betWindowSeconds;
+    }
+
+    public int spinTicks() {
+        return spinTicks;
+    }
+
+    public List<Long> stakeSteps() {
+        return stakeSteps;
+    }
+
+    public boolean pokerEnabled() {
+        return pokerEnabled;
+    }
+
+    public int autosaveSeconds() {
+        return autosaveSeconds;
+    }
+
+    public String prefix() {
+        return prefix;
+    }
+}
