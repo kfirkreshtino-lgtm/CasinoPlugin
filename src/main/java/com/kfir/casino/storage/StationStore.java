@@ -54,7 +54,8 @@ public final class StationStore {
                 continue;
             }
             Location location = new Location(world,
-                    section.getInt("x"), section.getInt("y"), section.getInt("z"));
+                    section.getInt("x"), section.getInt("y"), section.getInt("z"),
+                    (float) section.getDouble("yaw"), 0f);
             registry.add(new Station(id, type, location));
         }
         plugin.getLogger().info("Loaded " + registry.size() + " stations."
@@ -70,6 +71,8 @@ public final class StationStore {
             yaml.set(path + ".x", station.location().getBlockX());
             yaml.set(path + ".y", station.location().getBlockY());
             yaml.set(path + ".z", station.location().getBlockZ());
+            // Yaw is the direction a seated player looks, which the card layout needs.
+            yaml.set(path + ".yaw", station.location().getYaw());
         }
         try {
             File parent = file.getParentFile();

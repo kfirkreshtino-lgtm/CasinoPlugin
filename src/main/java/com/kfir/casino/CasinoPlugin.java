@@ -50,6 +50,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
     private PokerHook pokerHook;
 
     private BukkitTask autosaveTask;
+    private BukkitTask sweepTask;
 
     @Override
     public void onEnable() {
@@ -98,6 +99,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
     @Override
     public void onDisable() {
         Tasks.cancel(autosaveTask);
+        Tasks.cancel(sweepTask);
         if (games != null) {
             games.shutdown();
         }
@@ -111,6 +113,8 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
         Tasks.cancel(autosaveTask);
         long period = config.autosaveSeconds() * 20L;
         autosaveTask = Tasks.timer(this, period, period, () -> chipStore.saveAsync());
+        Tasks.cancel(sweepTask);
+        sweepTask = Tasks.timer(this, 200L, 200L, () -> games.sweepAbandonedTables());
     }
 
     /** Reloads config.yml and stations.yml. Games are refunded by the caller first. */

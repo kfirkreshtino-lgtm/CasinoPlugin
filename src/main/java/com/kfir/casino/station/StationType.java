@@ -6,9 +6,9 @@ import org.bukkit.Material;
 public enum StationType {
 
     CASHIER("Cashier", Material.EMERALD_BLOCK, "<green>"),
-    BLACKJACK("Blackjack", Material.GREEN_CONCRETE, "<green>"),
+    BLACKJACK("Blackjack", Material.LIME_CONCRETE, "<green>"),
     ROULETTE("Roulette", Material.RED_CONCRETE, "<red>"),
-    POKER("Poker", Material.BLUE_CONCRETE, "<aqua>");
+    POKER("Poker", Material.LIGHT_BLUE_CONCRETE, "<aqua>");
 
     private final String displayName;
     private final Material marker;

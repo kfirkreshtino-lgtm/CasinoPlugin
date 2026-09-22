@@ -5,6 +5,7 @@ import com.kfir.casino.economy.ExchangeResult;
 import com.kfir.casino.station.Station;
 import com.kfir.casino.station.StationType;
 import com.kfir.casino.util.Text;
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -128,7 +129,12 @@ public final class CasinoCommand implements CommandExecutor {
                     + "</white> station <white>" + existing.id() + "</white>.</red>");
             return;
         }
-        Station station = new Station(plugin.stations().nextId(type), type, target.getLocation());
+        // Face the station the way the admin is looking, so a hand-placed table
+        // lays its cards out in the right direction.
+        Location spot = target.getLocation();
+        spot.setYaw(Math.round(player.getLocation().getYaw() / 90f) * 90f);
+        spot.setPitch(0f);
+        Station station = new Station(plugin.stations().nextId(type), type, spot);
         plugin.stations().add(station);
         plugin.stationStore().save(plugin.stations());
         plugin.message(player, "<green>Registered <white>" + station.id() + "</white> as a <white>"

@@ -28,11 +28,17 @@ public final class ProceduralBuilder implements StructureBuilder {
     private static final int HEIGHT = 7;
     private static final int DEPTH = 19;
 
-    /** Table centres, relative to the origin corner. */
-    private static final int[][] BLACKJACK_SPOTS = {{5, 1, 4}, {5, 1, 9}, {5, 1, 14}};
-    private static final int[][] POKER_SPOTS = {{19, 1, 4}, {19, 1, 14}};
-    private static final int[] ROULETTE_SPOT = {19, 1, 9};
-    private static final int[] CASHIER_SPOT = {12, 1, 15};
+    /**
+     * Seat markers, relative to the origin corner. These are the blocks a player clicks,
+     * and they sit at the player edge of each table with the felt laid out in front.
+     */
+    private static final int[][] BLACKJACK_SEATS = {{3, 1, 6}, {7, 1, 6}, {11, 1, 6}, {15, 1, 6}};
+    private static final int[][] POKER_SEATS = {{5, 1, 13}, {13, 1, 13}};
+    private static final int[] ROULETTE_SPOT = {20, 1, 6};
+    private static final int[] CASHIER_SPOT = {20, 1, 15};
+
+    /** Yaw the seated player looks along, which points across the table at the dealer. */
+    private static final float FACING_NORTH = 180f;
 
     @Override
     public int width() {
@@ -63,14 +69,14 @@ public final class ProceduralBuilder implements StructureBuilder {
         List<UUID> markers = new ArrayList<>();
 
         int index = 1;
-        for (int[] spot : BLACKJACK_SPOTS) {
-            stations.add(table(world, ox, oy, oz, spot, StationType.BLACKJACK,
-                    idPrefix + "blackjack-" + index++));
+        for (int[] spot : BLACKJACK_SEATS) {
+            stations.add(seatedTable(world, ox, oy, oz, spot, FACING_NORTH, StationType.BLACKJACK,
+                    Material.GREEN_CONCRETE, idPrefix + "blackjack-" + index++));
         }
         index = 1;
-        for (int[] spot : POKER_SPOTS) {
-            stations.add(table(world, ox, oy, oz, spot, StationType.POKER,
-                    idPrefix + "poker-" + index++));
+        for (int[] spot : POKER_SEATS) {
+            stations.add(seatedTable(world, ox, oy, oz, spot, FACING_NORTH, StationType.POKER,
+                    Material.BLUE_CONCRETE, idPrefix + "poker-" + index++));
         }
         stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1"));
         stations.add(table(world, ox, oy, oz, CASHIER_SPOT, StationType.CASHIER, idPrefix + "cashier-1"));
@@ -132,6 +138,41 @@ public final class ProceduralBuilder implements StructureBuilder {
         for (int x = 10; x <= 14; x++) {
             set(world, ox + x, oy + 4, oz + z, Material.GOLD_BLOCK);
         }
+    }
+
+    /**
+     * A table a player sits at, with felt laid out in front of the seat.
+     *
+     * <p>The seat marker is at the player edge and the felt runs three blocks away from it
+     * towards the dealer, so there is room for the cards, the bet and the dealer hand. The
+     * yaw is stored on the station so the card layout knows which way the table faces.
+     */
+    private Station seatedTable(World world, int ox, int oy, int oz, int[] seatSpot, float yaw,
+                                StationType type, Material felt, String id) {
+        double radians = Math.toRadians(yaw);
+        int forwardX = (int) Math.round(-Math.sin(radians));
+        int forwardZ = (int) Math.round(Math.cos(radians));
+        int sideX = (int) Math.round(Math.cos(radians));
+        int sideZ = (int) Math.round(Math.sin(radians));
+
+        int bx = ox + seatSpot[0];
+        int by = oy + seatSpot[1];
+        int bz = oz + seatSpot[2];
+
+        for (int forward = 0; forward <= 2; forward++) {
+            for (int side = -1; side <= 1; side++) {
+                int x = bx + forwardX * forward + sideX * side;
+                int z = bz + forwardZ * forward + sideZ * side;
+                // The far row is the dealer side, in darker stone so the table reads as a table.
+                set(world, x, by, z, forward == 2 ? Material.POLISHED_BLACKSTONE : felt);
+            }
+        }
+        set(world, bx, by, bz, type.marker());
+
+        Location seat = new Location(world, bx, by, bz);
+        seat.setYaw(yaw);
+        seat.setPitch(0f);
+        return new Station(id, type, seat);
     }
 
     /** A three by three table top with the clickable station block in the middle. */

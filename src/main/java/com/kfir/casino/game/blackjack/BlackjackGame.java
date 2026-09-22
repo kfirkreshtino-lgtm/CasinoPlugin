@@ -46,7 +46,7 @@ public final class BlackjackGame {
     private long payout;
 
     private BukkitTask dealerTask;
-    private BlackjackMenu menu;
+    private BlackjackView view;
 
     public BlackjackGame(CasinoPlugin plugin, Player player, String stationId) {
         this.plugin = plugin;
@@ -113,8 +113,17 @@ public final class BlackjackGame {
 
         state = State.PLAYER_TURN;
 
+        // Announced in dealing order so the table plays them out one at a time
+        // instead of four cards appearing together.
+        dealt(false);
+        dealt(true);
+        dealt(false);
+        dealt(true);
+
         if (playerHand.isNatural() || dealerHand.isNatural()) {
-            settle();
+            revealAndSettle();
+        } else {
+            promptTurn();
         }
         refresh();
         return null;
@@ -128,11 +137,14 @@ public final class BlackjackGame {
         }
         playerHand.add(shoe.draw());
         playSound(Sound.ITEM_BOOK_PAGE_TURN);
+        dealt(false);
         if (playerHand.isBust()) {
-            settle();
+            revealAndSettle();
         } else if (playerHand.total() == 21) {
             stand();
             return;
+        } else {
+            promptTurn();
         }
         refresh();
     }
@@ -142,6 +154,7 @@ public final class BlackjackGame {
             return;
         }
         state = State.DEALER_TURN;
+        revealHole();
         refresh();
         startDealerTurn();
     }
@@ -161,12 +174,14 @@ public final class BlackjackGame {
         doubled = true;
         playerHand.add(shoe.draw());
         playSound(Sound.ENTITY_PLAYER_LEVELUP);
+        dealt(false);
         if (playerHand.isBust()) {
-            settle();
+            revealAndSettle();
             refresh();
             return null;
         }
         state = State.DEALER_TURN;
+        revealHole();
         refresh();
         startDealerTurn();
         return null;
@@ -185,11 +200,12 @@ public final class BlackjackGame {
             if (dealerShouldHit()) {
                 dealerHand.add(shoe.draw());
                 playSound(Sound.ITEM_BOOK_PAGE_TURN);
+                dealt(true);
                 refresh();
             } else {
                 Tasks.cancel(dealerTask);
                 dealerTask = null;
-                settle();
+                revealAndSettle();
                 refresh();
             }
         });
@@ -238,7 +254,18 @@ public final class BlackjackGame {
         }
 
         state = State.FINISHED;
-        announce();
+    }
+
+    /** Turns the hole card over, works out the result, then reports it once the table settles. */
+    private void revealAndSettle() {
+        revealHole();
+        settle();
+        if (view != null) {
+            view.finished();
+            view.whenSettled(this::announce);
+        } else {
+            announce();
+        }
     }
 
     private void announce() {
@@ -270,6 +297,9 @@ public final class BlackjackGame {
         payout = 0;
         state = State.BETTING;
         repeatBet();
+        if (view != null) {
+            view.reset();
+        }
     }
 
     /**
@@ -281,6 +311,10 @@ public final class BlackjackGame {
     public long cancelAndRefund() {
         Tasks.cancel(dealerTask);
         dealerTask = null;
+        if (view != null) {
+            view.close();
+            view = null;
+        }
         long refund = 0;
         if (state == State.PLAYER_TURN || state == State.DEALER_TURN) {
             refund = bet;
@@ -294,9 +328,41 @@ public final class BlackjackGame {
     // ---------------------------------------------------------------- helpers
 
     private void refresh() {
-        if (menu != null) {
-            menu.refresh();
+        if (view != null) {
+            view.render();
         }
+    }
+
+    private void dealt(boolean dealer) {
+        if (view != null) {
+            view.dealt(dealer);
+        }
+    }
+
+    private void revealHole() {
+        if (view != null) {
+            view.revealHole();
+        }
+    }
+
+    /**
+     * Opens the action menu, but only once the table has stopped moving and only if the
+     * player still has a decision to make. This is the single place an inventory appears
+     * during a hand.
+     */
+    private void promptTurn() {
+        if (view == null) {
+            return;
+        }
+        view.whenSettled(() -> {
+            if (state != State.PLAYER_TURN) {
+                return;
+            }
+            Player player = player();
+            if (player != null && player.isOnline()) {
+                new BlackjackActionMenu(plugin, player, this).open();
+            }
+        });
     }
 
     private void playSound(Sound sound) {
@@ -351,11 +417,11 @@ public final class BlackjackGame {
         return stationId;
     }
 
-    public void attachMenu(BlackjackMenu menu) {
-        this.menu = menu;
+    public void attachView(BlackjackView view) {
+        this.view = view;
     }
 
-    public BlackjackMenu menu() {
-        return menu;
+    public BlackjackView view() {
+        return view;
     }
 }

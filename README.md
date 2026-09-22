@@ -63,6 +63,21 @@ text display above each table names it.
 deposits once, and every bet moves chips only. A failed economy transaction can therefore
 never land in the middle of a dealt hand.
 
+**The game is played on a table, not in a chest.** Cards are display entities that slide
+out of the dealer shoe and turn face up where they land. Hand totals, the current bet and
+the result float over the felt. The player sits in a chair and watches the table.
+
+An inventory appears in exactly two places: choosing a stake before the hand, and a single
+row of hit, stand and double that opens by itself when the table stops moving and it is the
+player's turn. It closes the instant they choose, so an inventory is never covering the
+table while something is happening.
+
+**Cards are display entities rather than maps in item frames.** A filled map only renders
+its picture inside an item frame, which pins the card to a whole block face, cannot move
+smoothly and cannot turn over. Display entities can be scaled to the proportions of a real
+card, slide with an interpolated teleport, and flip with an interpolated rotation. Suit
+symbols come from the default font, so there is no resource pack for players to accept.
+
 **No shaded GUI library.** `Menu` is an `InventoryHolder` that maps slots to click
 handlers. One listener routes clicks and cancels everything else, so items cannot be pulled
 out of a menu.
@@ -76,10 +91,17 @@ writes a snapshot copied on the main thread.
 
 ## Games
 
-**Blackjack** is one instance per player, so any number of people can use the same table
-block at once. It implements hit, stand, double down on the first two cards, natural
-blackjack bonus, push, bust detection, and a dealer who draws to seventeen with configurable
-soft-seventeen behaviour. Splitting and insurance are not implemented.
+**Blackjack** is played at a physical table, one player per table against an automated
+dealer, with four tables in the building. Right-clicking the seat marker sits you down and
+opens the stake menu. Cards are dealt one at a time onto the felt, the dealer hole card
+stays face down until they play, and the action menu appears only when it is your turn.
+
+It implements hit, stand, double down on the first two cards, natural blackjack bonus, push,
+bust detection, and a dealer who draws to seventeen with configurable soft-seventeen
+behaviour. Splitting and insurance are not implemented.
+
+Presentation is separated from the rules by the `BlackjackView` interface, so the table can
+be restyled, or a second style added, without touching a single rule.
 
 **Roulette** is one shared round per table, which is how a real spin works and is what lets
 several players bet into the same result. The betting window opens on the first bet and
@@ -111,6 +133,11 @@ to change.
 
 `Card`, `Rank`, `Suit` and `Deck` in `com.kfir.casino.game.card` are ready to reuse.
 `Rank.pokerValue()` returns two through fourteen for hand ranking.
+
+The table rendering in `com.kfir.casino.table` is game agnostic and is the part worth
+reusing. `CardVisual` is a single animated card, `TableLayout` turns a station and its
+facing into card slots and label positions, `Hologram` is a floating line of text and `Seat`
+sits a player down. A poker table is the same pieces with more seats.
 
 ## Files written to the data folder
 
