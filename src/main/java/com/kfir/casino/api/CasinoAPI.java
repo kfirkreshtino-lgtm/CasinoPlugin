@@ -32,7 +32,7 @@ public interface CasinoAPI {
     /** Every registered station of one type, for example all poker tables. */
     List<Station> stations(StationType type);
 
-    /** Replaces the poker implementation. Pass null to go back to the placeholder. */
+    /** Replaces the poker implementation. Pass null to go back to the built-in Texas Hold'em. */
     void registerPokerHook(PokerHook hook);
 
     /** True when the player is mid-hand in any casino game, poker included. */

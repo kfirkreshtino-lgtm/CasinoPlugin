@@ -6,7 +6,7 @@ import com.kfir.casino.command.CasinoTabCompleter;
 import com.kfir.casino.economy.ChipBank;
 import com.kfir.casino.game.GameManager;
 import com.kfir.casino.game.poker.PokerHook;
-import com.kfir.casino.game.poker.UnavailablePokerHook;
+import com.kfir.casino.game.poker.HoldemPokerHook;
 import com.kfir.casino.gui.CashierMenu;
 import com.kfir.casino.gui.MenuListener;
 import com.kfir.casino.station.Station;
@@ -63,7 +63,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
 
         this.structures = new StructureService(this, new ProceduralBuilder());
         this.games = new GameManager(this);
-        this.pokerHook = new UnavailablePokerHook(this);
+        this.pokerHook = new HoldemPokerHook(this);
 
         getServer().getPluginManager().registerEvents(new MenuListener(), this);
         getServer().getPluginManager().registerEvents(new StationListener(this), this);
@@ -80,8 +80,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
         getServer().getServicesManager().register(CasinoAPI.class, this, this, ServicePriority.Normal);
         startAutosave();
 
-        getLogger().info("Casino ready. Blackjack and roulette are live; poker is "
-                + pokerHook.moduleName() + ".");
+        getLogger().info("Casino ready. Blackjack, roulette and " + pokerHook.moduleName() + " are live.");
     }
 
     @Override
@@ -119,13 +118,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
             case CASHIER -> new CashierMenu(this, player).open();
             case BLACKJACK -> games.openBlackjack(player, station);
             case ROULETTE -> games.openRoulette(player, station);
-            case POKER -> {
-                if (!config.pokerEnabled()) {
-                    message(player, "<yellow>The poker room is closed.</yellow>");
-                } else {
-                    pokerHook.openTable(player, station);
-                }
-            }
+            case POKER -> pokerHook.openTable(player, station);
         }
     }
 
@@ -167,7 +160,10 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
 
     @Override
     public void registerPokerHook(PokerHook hook) {
-        this.pokerHook = hook == null ? new UnavailablePokerHook(this) : hook;
+        if (this.pokerHook != null) {
+            this.pokerHook.shutdown();
+        }
+        this.pokerHook = hook == null ? new HoldemPokerHook(this) : hook;
         getLogger().info("Poker module is now: " + this.pokerHook.moduleName());
     }
 

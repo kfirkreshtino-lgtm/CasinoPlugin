@@ -1,8 +1,7 @@
 # CasinoPlugin
 
-A casino for Paper servers. Blackjack and Roulette are implemented end to end.
-Texas Holdem is deliberately not implemented: it is a separate module that plugs in
-through a published interface.
+A casino for Paper servers with Blackjack, Roulette and Texas Hold'em poker. Poker is
+built in but still sits behind a published interface, so another plugin can replace it.
 
 ## Requirements
 
@@ -72,10 +71,10 @@ player's turn. It closes the instant they choose, so an inventory is never cover
 table while something is happening.
 
 **Cards are display entities rather than maps in item frames.** A filled map only renders
-its picture inside an item frame, which pins the card to a whole block face, cannot move
-smoothly and cannot turn over. Display entities can be scaled to the proportions of a real
-card, slide with an interpolated teleport, and flip with an interpolated rotation. Suit
-symbols come from the default font, so there is no resource pack for players to accept.
+its picture inside an item frame, which pins the card to a whole block face. A text display
+can be scaled to the proportions of a real card and stands on the felt turned towards
+whoever looks at it, so it always reads the right way up. Cards appear in place with no
+animation. Suit symbols come from the default font, so there is no resource pack to accept.
 
 **No shaded GUI library.** `Menu` is an `InventoryHolder` that maps slots to click
 handlers. One listener routes clicks and cancels everything else, so items cannot be pulled
@@ -110,33 +109,48 @@ afford in one round. True adjacency bets (split, street, corner, line) are not i
 because selecting them needs a physical layout grid. European single zero is the default;
 American is a config change.
 
-## Poker integration
+**Texas Hold'em** is played at oval six-seat tables with a felt top, a wooden rail and
+chairs. Right-click any part of a table to choose a buy-in and sit down. Chips you bring
+leave your balance and stay on the table until you stand up, walk away or disconnect.
 
-This plugin owns the building, the stations, the chip economy and the menu framework. The
-poker module implements `com.kfir.casino.game.poker.PokerHook` and registers it:
+A hand needs at least two players (`poker.min-players`). Once enough are seated a countdown
+starts, then the button moves, the blinds are posted and everyone is dealt two cards. When
+it is your turn a menu opens with your cards, the board and fold, check or call, three raise
+sizes and all in. Running out of time checks if you can and folds otherwise.
+
+Rules: no-limit Texas Hold'em with small and big blinds, heads-up blind order, four betting
+rounds, minimum raise of the last full raise, all in for less, a short all in does not
+reopen raising, side pots, split pots with the odd chip left of the button, and showdown
+with the best five of seven cards. The rules are in `HoldemHand` with no Minecraft code in
+it, which is what the unit tests exercise.
+
+**Nobody can see another player's hole cards, from any angle.** Each hole card is two
+entities at the same spot: a face-down card that everyone except the owner is sent, and a
+face-up card that only the owner is sent. The server never sends the face to anyone else,
+so no position, camera trick or client mod can reveal it. Cards are only shown to the table
+at showdown, and folded cards are taken off the table unseen.
+
+## Replacing poker
+
+The built-in poker is `HoldemPokerHook`. Another plugin can replace it by implementing
+`com.kfir.casino.game.poker.PokerHook` and registering it:
 
 ```java
 CasinoAPI casino = Bukkit.getServicesManager().load(CasinoAPI.class);
 casino.registerPokerHook(new MyPokerHook());
 ```
 
-Move chips with `CasinoAPI.takeChips` and `CasinoAPI.giveChips`. Never take or hand out
-diamonds directly from the poker module, or buy-ins and payouts will drift out of step with the cashier.
+Registering `null` goes back to the built-in game. Move chips with `CasinoAPI.takeChips`
+and `CasinoAPI.giveChips`. Never take or hand out diamonds directly, or buy-ins and payouts
+will drift out of step with the cashier.
 
 `PokerHook` requires `openTable`, and should override `leave`, `isBusy`, `shutdown` and
 `moduleName`. `leave` and `shutdown` must refund every open pot.
 
-Set `poker.enabled: true` in config.yml once the module is installed. Until then poker
-stations exist in the building and tell players the room is closed, so the layout never has
-to change.
-
-`Card`, `Rank`, `Suit` and `Deck` in `com.kfir.casino.game.card` are ready to reuse.
-`Rank.pokerValue()` returns two through fourteen for hand ranking.
-
-The table rendering in `com.kfir.casino.table` is game agnostic and is the part worth
-reusing. `CardVisual` is a single animated card, `TableLayout` turns a station and its
-facing into card slots and label positions, `Hologram` is a floating line of text and `Seat`
-sits a player down. A poker table is the same pieces with more seats.
+`Card`, `Rank`, `Suit` and `Deck` in `com.kfir.casino.game.card` are ready to reuse, and so
+is `HandEvaluator`. The table pieces in `com.kfir.casino.table` are game agnostic:
+`CardVisual` is a card, including private cards only one player can see, `Hologram` is a
+floating line of text and `Seat` sits a player down.
 
 ## Files written to the data folder
 

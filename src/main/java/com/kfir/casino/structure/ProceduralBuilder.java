@@ -7,6 +7,11 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Lantern;
+import org.bukkit.block.data.type.Slab;
+import org.bukkit.block.data.type.Stairs;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.TextDisplay;
 
@@ -21,6 +26,9 @@ import java.util.UUID;
  * placed relative to the origin corner, then each game table is stamped as a three by
  * three top with a coloured centre block. That centre block is the station a player
  * right-clicks, and a floating label names it.
+ *
+ * <p>Poker tables are built as real card tables instead: an oval of felt inside a padded
+ * wooden rail, six chairs around it and lanterns hanging over it.
  */
 public final class ProceduralBuilder implements StructureBuilder {
 
@@ -33,7 +41,8 @@ public final class ProceduralBuilder implements StructureBuilder {
      * and they sit at the player edge of each table with the felt laid out in front.
      */
     private static final int[][] BLACKJACK_SEATS = {{3, 1, 6}, {7, 1, 6}, {11, 1, 6}, {15, 1, 6}};
-    private static final int[][] POKER_SEATS = {{5, 1, 13}, {13, 1, 13}};
+    /** Middle of each poker table's felt, which is also its station block. */
+    private static final int[][] POKER_TABLES = {{5, 1, 13}, {14, 1, 13}};
     private static final int[] ROULETTE_SPOT = {20, 1, 6};
     private static final int[] CASHIER_SPOT = {20, 1, 15};
 
@@ -74,9 +83,8 @@ public final class ProceduralBuilder implements StructureBuilder {
                     Material.GREEN_CONCRETE, idPrefix + "blackjack-" + index++));
         }
         index = 1;
-        for (int[] spot : POKER_SEATS) {
-            stations.add(seatedTable(world, ox, oy, oz, spot, FACING_NORTH, StationType.POKER,
-                    Material.BLUE_CONCRETE, idPrefix + "poker-" + index++));
+        for (int[] spot : POKER_TABLES) {
+            stations.add(pokerTable(world, ox, oy, oz, spot, idPrefix + "poker-" + index++));
         }
         stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1"));
         stations.add(table(world, ox, oy, oz, CASHIER_SPOT, StationType.CASHIER, idPrefix + "cashier-1"));
@@ -175,6 +183,67 @@ public final class ProceduralBuilder implements StructureBuilder {
         return new Station(id, type, seat);
     }
 
+    /**
+     * A six seat poker table, long side running east to west.
+     *
+     * <pre>
+     *      . s s s s s .      s = rail, a dark oak slab in the top half of the block so it
+     *    c s f f f f f s c        sits flush with the felt and overhangs like a real rail
+     *      s f f F f f s      f = felt, F = the station block in the middle
+     *    c s f f f f f s c    c = chair
+     *      . s s s s s .      . = left empty, which rounds the corners off
+     * </pre>
+     *
+     * The chairs sit at two blocks either side of the middle and in the middle of each long
+     * side, where {@link com.kfir.casino.game.poker.PokerLayout} seats the players.
+     */
+    private Station pokerTable(World world, int ox, int oy, int oz, int[] spot, String id) {
+        int cx = ox + spot[0];
+        int cy = oy + spot[1];
+        int cz = oz + spot[2];
+
+        Slab rail = (Slab) Material.DARK_OAK_SLAB.createBlockData();
+        rail.setType(Slab.Type.TOP);
+
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                boolean corner = Math.abs(dx) == 3 && Math.abs(dz) == 2;
+                boolean edge = Math.abs(dx) == 3 || Math.abs(dz) == 2;
+                if (corner) {
+                    set(world, cx + dx, cy, cz + dz, Material.AIR);
+                } else if (edge) {
+                    setData(world, cx + dx, cy, cz + dz, rail);
+                } else {
+                    set(world, cx + dx, cy, cz + dz, Material.GREEN_WOOL);
+                }
+            }
+        }
+
+        // Three chairs on each long side, backs away from the table.
+        for (int dx = -2; dx <= 2; dx += 2) {
+            setData(world, cx + dx, cy, cz + 3, chair(BlockFace.SOUTH));
+            setData(world, cx + dx, cy, cz - 3, chair(BlockFace.NORTH));
+        }
+
+        Lantern lantern = (Lantern) Material.LANTERN.createBlockData();
+        lantern.setHanging(true);
+        setData(world, cx - 1, oy + HEIGHT - 2, cz, lantern);
+        setData(world, cx + 1, oy + HEIGHT - 2, cz, lantern);
+
+        Location centre = new Location(world, cx, cy, cz);
+        centre.setYaw(0f);
+        centre.setPitch(0f);
+        return new Station(id, StationType.POKER, centre);
+    }
+
+    /** A dark oak chair. Stairs face the side their tall back is on. */
+    private static BlockData chair(BlockFace back) {
+        Stairs stairs = (Stairs) Material.DARK_OAK_STAIRS.createBlockData();
+        stairs.setFacing(back);
+        stairs.setHalf(Stairs.Half.BOTTOM);
+        return stairs;
+    }
+
     /** A three by three table top with the clickable station block in the middle. */
     private Station table(World world, int ox, int oy, int oz, int[] spot, StationType type, String id) {
         int cx = ox + spot[0];
@@ -211,13 +280,19 @@ public final class ProceduralBuilder implements StructureBuilder {
 
     /** Floating name tag above a station. */
     private UUID label(Station station) {
-        Location where = station.location().clone().add(0.5, 1.4, 0.5);
+        // Poker puts its cards and pot in the middle of the felt, so its name floats higher.
+        double height = station.type() == StationType.POKER ? 2.5 : 1.4;
+        Location where = station.location().clone().add(0.5, height, 0.5);
         TextDisplay display = where.getWorld().spawn(where, TextDisplay.class, entity -> {
             entity.text(Text.mm(station.type().color() + "<bold>" + station.label() + "</bold>"));
             entity.setBillboard(Display.Billboard.CENTER);
             entity.setPersistent(true);
         });
         return display.getUniqueId();
+    }
+
+    private void setData(World world, int x, int y, int z, BlockData data) {
+        world.getBlockAt(x, y, z).setBlockData(data, false);
     }
 
     private void set(World world, int x, int y, int z, Material material) {

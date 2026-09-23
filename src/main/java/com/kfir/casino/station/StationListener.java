@@ -1,6 +1,7 @@
 package com.kfir.casino.station;
 
 import com.kfir.casino.CasinoPlugin;
+import com.kfir.casino.game.poker.PokerLayout;
 import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -35,10 +36,23 @@ public final class StationListener implements Listener {
         }
         Station station = plugin.stations().at(block.getLocation());
         if (station == null) {
+            station = pokerTableAt(block);
+        }
+        if (station == null) {
             return;
         }
         event.setCancelled(true);
         plugin.openStation(event.getPlayer(), station);
+    }
+
+    /** A poker table is big, so any of its felt, rail or chairs counts as clicking it. */
+    private Station pokerTableAt(Block block) {
+        for (Station station : plugin.stations().ofType(StationType.POKER)) {
+            if (station.world() != null && PokerLayout.forStation(station.location()).covers(block)) {
+                return station;
+            }
+        }
+        return null;
     }
 
     /** Stops a registered table from being mined out from under an active game. */

@@ -48,6 +48,15 @@ public final class GameManager implements Listener {
 
     public void openBlackjack(Player player, Station station) {
         UUID id = player.getUniqueId();
+        if (plugin.pokerHook().isBusy(id)) {
+            plugin.message(player, "<red>Finish your poker hand first.</red>");
+            return;
+        }
+        long back = plugin.pokerHook().leave(id);
+        if (back > 0) {
+            plugin.message(player, "<gray>You left the poker table. <white>" + Text.chips(back)
+                    + "</white> chips returned.</gray>");
+        }
         BlackjackGame game = blackjackGames.get(id);
 
         if (game != null && game.isBusy() && !game.stationId().equals(station.id())) {
@@ -107,6 +116,22 @@ public final class GameManager implements Listener {
 
     // ------------------------------------------------------------------ state
 
+    /** True while the player has a blackjack hand in play. */
+    public boolean inBlackjackHand(UUID playerId) {
+        BlackjackGame game = blackjackGames.get(playerId);
+        return game != null && game.isBusy();
+    }
+
+    /** Stands a player up from blackjack and refunds any open bet. Returns the chips refunded. */
+    public long leaveBlackjack(UUID playerId) {
+        Seat seat = seats.remove(playerId);
+        if (seat != null) {
+            seat.release();
+        }
+        BlackjackGame game = blackjackGames.remove(playerId);
+        return game != null ? game.cancelAndRefund() : 0;
+    }
+
     /** True while the player is mid-hand anywhere in the casino. */
     public boolean isBusy(UUID playerId) {
         BlackjackGame game = blackjackGames.get(playerId);
@@ -121,17 +146,7 @@ public final class GameManager implements Listener {
      * Returns the total chips returned.
      */
     public long leave(UUID playerId) {
-        long refunded = 0;
-
-        Seat seat = seats.remove(playerId);
-        if (seat != null) {
-            seat.release();
-        }
-
-        BlackjackGame game = blackjackGames.remove(playerId);
-        if (game != null) {
-            refunded += game.cancelAndRefund();
-        }
+        long refunded = leaveBlackjack(playerId);
 
         for (RouletteRound round : rouletteRounds.values()) {
             round.removeViewer(playerId);

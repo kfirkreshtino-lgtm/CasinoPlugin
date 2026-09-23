@@ -30,7 +30,13 @@ public final class CasinoConfig {
     private final int spinTicks;
     private final List<Long> stakeSteps;
 
-    private final boolean pokerEnabled;
+    private final long pokerSmallBlind;
+    private final long pokerBigBlind;
+    private final long pokerMinBuyIn;
+    private final long pokerMaxBuyIn;
+    private final int pokerMinPlayers;
+    private final int pokerStartDelaySeconds;
+    private final int pokerTurnSeconds;
     private final int autosaveSeconds;
     private final String prefix;
 
@@ -69,7 +75,13 @@ public final class CasinoConfig {
         }
         this.stakeSteps = List.copyOf(steps);
 
-        this.pokerEnabled = c.getBoolean("poker.enabled", false);
+        this.pokerSmallBlind = Math.max(1, c.getLong("poker.small-blind", 5));
+        this.pokerBigBlind = Math.max(pokerSmallBlind, c.getLong("poker.big-blind", 10));
+        this.pokerMinBuyIn = Math.max(pokerBigBlind, c.getLong("poker.min-buy-in", 100));
+        this.pokerMaxBuyIn = Math.max(pokerMinBuyIn, c.getLong("poker.max-buy-in", 1000));
+        this.pokerMinPlayers = Math.min(6, Math.max(2, c.getInt("poker.min-players", 2)));
+        this.pokerStartDelaySeconds = Math.max(3, c.getInt("poker.start-delay-seconds", 10));
+        this.pokerTurnSeconds = Math.max(10, c.getInt("poker.turn-seconds", 30));
         this.autosaveSeconds = Math.max(15, c.getInt("storage.autosave-seconds", 120));
         this.prefix = c.getString("messages.prefix", "<gold>[Casino] </gold>");
     }
@@ -142,8 +154,33 @@ public final class CasinoConfig {
         return stakeSteps;
     }
 
-    public boolean pokerEnabled() {
-        return pokerEnabled;
+    public long pokerSmallBlind() {
+        return pokerSmallBlind;
+    }
+
+    public long pokerBigBlind() {
+        return pokerBigBlind;
+    }
+
+    public long pokerMinBuyIn() {
+        return pokerMinBuyIn;
+    }
+
+    public long pokerMaxBuyIn() {
+        return pokerMaxBuyIn;
+    }
+
+    /** Players needed before a hand is dealt, never below two. */
+    public int pokerMinPlayers() {
+        return pokerMinPlayers;
+    }
+
+    public int pokerStartDelaySeconds() {
+        return pokerStartDelaySeconds;
+    }
+
+    public int pokerTurnSeconds() {
+        return pokerTurnSeconds;
     }
 
     public int autosaveSeconds() {

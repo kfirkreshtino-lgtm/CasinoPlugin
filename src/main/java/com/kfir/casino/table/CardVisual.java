@@ -5,10 +5,14 @@ import com.kfir.casino.util.Text;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
+import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
+import java.util.function.Consumer;
 
 /**
  * One playing card standing on the table.
@@ -17,6 +21,11 @@ import org.joml.Vector3f;
  * turned towards whoever looks at it. There is deliberately no sliding or turning over:
  * the card simply appears where it belongs, face up, or face down for the dealer's hole
  * card, and a face-down card is revealed by changing what it shows.
+ *
+ * <p>A card can also be private. Poker hole cards are two cards at the same spot: a face
+ * up one that only the owner is sent, and a face down one that everyone except the owner
+ * is sent. The server never sends the face to anyone else, so no angle and no client mod
+ * can show it to them.
  */
 public final class CardVisual {
 
@@ -47,6 +56,32 @@ public final class CardVisual {
      * @param shown the card to show face up, or null to place it face down
      */
     public static CardVisual place(Location where, Card shown) {
+        CardVisual visual = spawn(where, entity -> { });
+        if (shown != null) {
+            visual.reveal(shown);
+        } else {
+            visual.conceal();
+        }
+        return visual;
+    }
+
+    /**
+     * Places a face up card that only one player can see. Everyone else is never sent it,
+     * not even as a hidden entity.
+     */
+    public static CardVisual placeFor(Plugin plugin, Location where, Card shown, Player viewer) {
+        CardVisual visual = spawn(where, entity -> entity.setVisibleByDefault(false));
+        visual.reveal(shown);
+        viewer.showEntity(plugin, visual.display);
+        return visual;
+    }
+
+    /** Stops one player from being sent this card, such as the owner of a face down hole card. */
+    public void hideFrom(Plugin plugin, Player player) {
+        player.hideEntity(plugin, display);
+    }
+
+    private static CardVisual spawn(Location where, Consumer<TextDisplay> extra) {
         TextDisplay display = where.getWorld().spawn(where, TextDisplay.class, entity -> {
             entity.setBillboard(Display.Billboard.VERTICAL);
             entity.setAlignment(TextDisplay.TextAlignment.CENTER);
@@ -61,14 +96,9 @@ public final class CardVisual {
                     new Quaternionf(),
                     new Vector3f(CARD_SCALE, CARD_SCALE, CARD_SCALE),
                     new Quaternionf()));
+            extra.accept(entity);
         });
-        CardVisual visual = new CardVisual(display);
-        if (shown != null) {
-            visual.reveal(shown);
-        } else {
-            visual.conceal();
-        }
-        return visual;
+        return new CardVisual(display);
     }
 
     /** Moves the card to a new spot, for example when its row re-centres. */

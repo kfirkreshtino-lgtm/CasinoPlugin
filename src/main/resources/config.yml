@@ -46,9 +46,18 @@ roulette:
   stake-steps: [5, 10, 25, 50, 100, 250]
 
 poker:
-  # Leave false until the poker module is installed. Poker stations will tell
-  # players the game is unavailable instead of opening an empty menu.
-  enabled: false
+  # Texas Hold'em. Chips a player sits down with leave their balance and stay on the
+  # table until they stand up.
+  small-blind: 5
+  big-blind: 10
+  min-buy-in: 100
+  max-buy-in: 1000
+  # Players needed before a hand is dealt. Never less than 2.
+  min-players: 2
+  # Countdown before a hand once enough players are seated.
+  start-delay-seconds: 10
+  # Time a player has to act. When it runs out they check if they can, otherwise fold.
+  turn-seconds: 30
 
 storage:
   # Seconds between background saves of chip balances.

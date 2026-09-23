@@ -3,7 +3,7 @@ version: '${project.version}'
 main: com.kfir.casino.CasinoPlugin
 api-version: '26.1'
 authors: [kfir]
-description: A full casino for Paper servers - Blackjack, Roulette and a pluggable Poker module.
+description: A full casino for Paper servers - Blackjack, Roulette and Texas Hold'em poker.
 softdepend: []
 
 commands:

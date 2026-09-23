@@ -6,14 +6,14 @@ import org.bukkit.entity.Player;
 import java.util.UUID;
 
 /**
- * Integration point for the Texas Holdem module.
+ * Integration point for poker.
  *
- * <p>This plugin owns the casino building, the stations, the chip economy and the menu
- * framework. It deliberately does not implement poker. A separate plugin implements this
- * interface and registers it, at which point every POKER station starts routing clicks
- * into that implementation.
+ * <p>The casino ships its own Texas Holdem, {@link HoldemPokerHook}. A separate plugin can
+ * still replace it by implementing this interface and registering it, at which point every
+ * POKER station routes clicks into that implementation instead.
  *
- * <p>Wiring it up from the poker plugin, in its onEnable, after CasinoPlugin has loaded:
+ * <p>Wiring a replacement up from another plugin, in its onEnable, after CasinoPlugin has
+ * loaded:
  *
  * <pre>
  * CasinoAPI casino = Bukkit.getServicesManager().load(CasinoAPI.class);
