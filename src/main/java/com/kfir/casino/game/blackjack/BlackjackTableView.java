@@ -20,34 +20,22 @@ import java.util.List;
 /**
  * Draws a blackjack game on a real table in the world.
  *
- * <p>Cards are display entities that slide out of the shoe and turn over where they land.
- * Totals, the bet and the result float over the felt. Nothing about the game lives in an
- * inventory, so the player watches the table rather than a chest.
+ * <p>Cards are display entities that simply appear in their place on the felt, with no
+ * sliding or turning over. Totals, the bet and the result float over the felt.
  *
- * <p>Animation is queued rather than immediate. Dealing four cards at once would look like
- * they all appeared together, so each step is popped off a queue and holds the table for
- * its own number of ticks before the next one runs. Anything that must wait for the table
- * to settle is queued behind a pause long enough for the last card to land, turn over and
- * be read.
+ * <p>Changes to the table still go through a queue so they happen in the order the game
+ * reported them. Anything that must wait for the table, such as the action menu that
+ * covers the screen, is queued behind a short pause so the player can read the cards first.
  */
 public final class BlackjackTableView implements BlackjackView {
 
-    /** Ticks between two dealt cards. */
-    private static final int STAGGER = 12;
-    /** How long a card takes to slide out of the shoe. */
-    private static final int SLIDE_TICKS = 10;
-    /** How long a card takes to turn over. */
-    private static final int FLIP_TICKS = 10;
+    /** Ticks between two queued table changes. */
+    private static final int STEP_TICKS = 1;
     /**
-     * Ticks a new card waits at the shoe before sliding. A card that is spawned and moved
-     * in the same tick reaches the client already at its destination and never slides.
-     */
-    private static final int SPAWN_TICKS = 2;
-    /**
-     * Pause after the table stops moving before anything that waits for it, such as the
+     * Pause after the cards are on the table before anything that waits for it, such as the
      * action menu, which covers the screen. Long enough to read the cards first.
      */
-    private static final int READ_TICKS = 30;
+    private static final int READ_TICKS = 20;
 
     private final CasinoPlugin plugin;
     private final BlackjackGame game;
@@ -65,7 +53,7 @@ public final class BlackjackTableView implements BlackjackView {
 
     private BukkitTask pump;
 
-    /** One queued animation step and how long the table is busy after it runs. */
+    /** One queued table change and how long to wait after it before the next. */
     private record Step(Runnable action, int holdTicks) {
     }
 
@@ -142,22 +130,15 @@ public final class BlackjackTableView implements BlackjackView {
     @Override
     public void dealt(boolean dealer) {
         enqueue(() -> {
-            // The card only appears when its turn comes, so the shoe never holds a pile of
-            // cards waiting to be dealt.
             List<CardVisual> row = dealer ? dealerCards : playerCards;
             int index = row.size();
-            CardVisual visual = CardVisual.spawn(plugin, layout.shoe(), layout.yaw());
-            row.add(visual);
-            playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.4f);
-            Tasks.later(plugin, SPAWN_TICKS, () -> layoutRow(dealer));
-
             Card card = cardAt(dealer, index);
             boolean hole = dealer && index == 1;
-            if (card != null && !hole) {
-                Tasks.later(plugin, SPAWN_TICKS + SLIDE_TICKS, () -> visual.reveal(card, FLIP_TICKS));
-            }
+            row.add(CardVisual.place(layout.cardSlot(index, index + 1, dealer), hole ? null : card));
+            layoutRow(dealer);
+            playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.4f);
             render();
-        }, STAGGER);
+        }, STEP_TICKS);
     }
 
     @Override
@@ -166,12 +147,12 @@ public final class BlackjackTableView implements BlackjackView {
             if (dealerCards.size() > 1) {
                 Card hole = cardAt(true, 1);
                 if (hole != null && !dealerCards.get(1).isFaceUp()) {
-                    dealerCards.get(1).reveal(hole, FLIP_TICKS);
+                    dealerCards.get(1).reveal(hole);
                     playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.1f);
                 }
             }
             render();
-        }, STAGGER);
+        }, STEP_TICKS);
     }
 
     @Override
@@ -190,7 +171,7 @@ public final class BlackjackTableView implements BlackjackView {
             playSound(outcome.isWin() ? Sound.ENTITY_PLAYER_LEVELUP
                     : outcome == Outcome.PUSH ? Sound.BLOCK_NOTE_BLOCK_PLING
                     : Sound.ENTITY_VILLAGER_NO, 1f);
-        }, STAGGER);
+        }, STEP_TICKS);
     }
 
     @Override
@@ -198,23 +179,22 @@ public final class BlackjackTableView implements BlackjackView {
         enqueue(() -> {
             clearCards();
             render();
-        }, STAGGER);
+        }, STEP_TICKS);
     }
 
     @Override
     public void whenSettled(Runnable action) {
-        // The last card may still be sliding and turning over, so wait for that to finish
-        // and then give the player a moment to read the table.
-        enqueue(() -> { }, SPAWN_TICKS + SLIDE_TICKS + FLIP_TICKS + READ_TICKS);
+        // Give the player a moment to read the table before anything covers it.
+        enqueue(() -> { }, READ_TICKS);
         enqueue(action, 0);
     }
 
-    /** Moves every card in a row to its resting place, re-centring the row as it grows. */
+    /** Puts every card in a row in its place, re-centring the row as it grows. */
     private void layoutRow(boolean dealer) {
         List<CardVisual> row = dealer ? dealerCards : playerCards;
         for (int i = 0; i < row.size(); i++) {
             Location slot = layout.cardSlot(i, row.size(), dealer);
-            row.get(i).moveTo(slot, SLIDE_TICKS);
+            row.get(i).moveTo(slot);
         }
     }
 

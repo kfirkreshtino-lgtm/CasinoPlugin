@@ -14,7 +14,7 @@ import org.bukkit.World;
 public final class TableLayout {
 
     /** Gap between the centres of two neighbouring cards, in blocks. */
-    private static final double CARD_SPACING = 0.46;
+    private static final double CARD_SPACING = 0.36;
     /** Widest a row of cards may spread before the cards start to overlap. */
     private static final double MAX_ROW_SPAN = 2.1;
     /** How far the card rows sit from the middle of the table. */
@@ -80,11 +80,6 @@ public final class TableLayout {
         return location;
     }
 
-    /** Where a card is dealt from, just past the dealer on their right. */
-    public Location shoe() {
-        return at(DEALER_ROW + 0.35, 1.05, CARD_LIFT + 0.02);
-    }
-
     /**
      * Resting place of one card in a hand.
      *
@@ -99,14 +94,14 @@ public final class TableLayout {
         return at(forward, dealer ? -offset : offset, CARD_LIFT);
     }
 
-    /** Floating total above a hand. */
+    /** Floating total above a hand, clear of the standing cards. */
     public Location handLabel(boolean dealer) {
-        return at(dealer ? DEALER_ROW + 0.30 : -PLAYER_ROW - 0.34, 0, 0.30);
+        return at(dealer ? DEALER_ROW : -PLAYER_ROW, 0, 0.55);
     }
 
     /** The main status line, floating over the middle of the table. */
     public Location statusLabel() {
-        return at(0, 0, 0.62);
+        return at(0, 0, 0.85);
     }
 
     /** Where the wagered chips sit, in front of the player. */
