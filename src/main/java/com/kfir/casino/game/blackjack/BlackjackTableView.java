@@ -25,17 +25,24 @@ import java.util.List;
  * inventory, so the player watches the table rather than a chest.
  *
  * <p>Animation is queued rather than immediate. Dealing four cards at once would look like
- * they all appeared together, so each step is popped off a queue a few ticks apart, and
- * anything that must wait for the table to settle is queued behind them.
+ * they all appeared together, so each step is popped off a queue and holds the table for
+ * its own number of ticks before the next one runs. Anything that must wait for the table
+ * to settle is queued behind a pause long enough for the last card to land, turn over and
+ * be read.
  */
 public final class BlackjackTableView implements BlackjackView {
 
-    /** Ticks between two queued animation steps. */
-    private static final int STAGGER = 7;
+    /** Ticks between two dealt cards. */
+    private static final int STAGGER = 12;
     /** How long a card takes to slide out of the shoe. */
-    private static final int SLIDE_TICKS = 6;
+    private static final int SLIDE_TICKS = 10;
     /** How long a card takes to turn over. */
-    private static final int FLIP_TICKS = 5;
+    private static final int FLIP_TICKS = 8;
+    /**
+     * Pause after the table stops moving before anything that waits for it, such as the
+     * action menu, which covers the screen. Long enough to read the cards first.
+     */
+    private static final int READ_TICKS = 30;
 
     private final CasinoPlugin plugin;
     private final BlackjackGame game;
@@ -44,7 +51,7 @@ public final class BlackjackTableView implements BlackjackView {
 
     private final List<CardVisual> playerCards = new ArrayList<>();
     private final List<CardVisual> dealerCards = new ArrayList<>();
-    private final Deque<Runnable> animations = new ArrayDeque<>();
+    private final Deque<Step> animations = new ArrayDeque<>();
 
     private Hologram playerTotal;
     private Hologram dealerTotal;
@@ -52,6 +59,10 @@ public final class BlackjackTableView implements BlackjackView {
     private Hologram betLabel;
 
     private BukkitTask pump;
+
+    /** One queued animation step and how long the table is busy after it runs. */
+    private record Step(Runnable action, int holdTicks) {
+    }
 
     public BlackjackTableView(CasinoPlugin plugin, BlackjackGame game, Player player, TableLayout layout) {
         this.plugin = plugin;
@@ -139,7 +150,7 @@ public final class BlackjackTableView implements BlackjackView {
                 Tasks.later(plugin, SLIDE_TICKS, () -> visual.reveal(card, FLIP_TICKS));
             }
             render();
-        });
+        }, STAGGER);
     }
 
     @Override
@@ -153,7 +164,7 @@ public final class BlackjackTableView implements BlackjackView {
                 }
             }
             render();
-        });
+        }, STAGGER);
     }
 
     @Override
@@ -172,7 +183,7 @@ public final class BlackjackTableView implements BlackjackView {
             playSound(outcome.isWin() ? Sound.ENTITY_PLAYER_LEVELUP
                     : outcome == Outcome.PUSH ? Sound.BLOCK_NOTE_BLOCK_PLING
                     : Sound.ENTITY_VILLAGER_NO, 1f);
-        });
+        }, STAGGER);
     }
 
     @Override
@@ -180,12 +191,15 @@ public final class BlackjackTableView implements BlackjackView {
         enqueue(() -> {
             clearCards();
             render();
-        });
+        }, STAGGER);
     }
 
     @Override
     public void whenSettled(Runnable action) {
-        enqueue(action);
+        // The last card may still be sliding and turning over, so wait for that to finish
+        // and then give the player a moment to read the table.
+        enqueue(() -> { }, SLIDE_TICKS + FLIP_TICKS + READ_TICKS);
+        enqueue(action, 0);
     }
 
     /** Moves every card in a row to its resting place, re-centring the row as it grows. */
@@ -202,25 +216,22 @@ public final class BlackjackTableView implements BlackjackView {
         return index < cards.size() ? cards.get(index) : null;
     }
 
-    private void enqueue(Runnable action) {
-        animations.add(action);
-        startPump();
+    private void enqueue(Runnable action, int holdTicks) {
+        animations.add(new Step(action, holdTicks));
+        if (pump == null) {
+            pump = Tasks.later(plugin, 0L, this::runNext);
+        }
     }
 
-    /** Pops one queued step every few ticks, then stops until there is more to do. */
-    private void startPump() {
-        if (pump != null) {
+    /** Runs one queued step, then waits out its hold before the next, stopping when empty. */
+    private void runNext() {
+        Step next = animations.poll();
+        if (next == null) {
+            pump = null;
             return;
         }
-        pump = Tasks.timer(plugin, 0L, STAGGER, () -> {
-            Runnable next = animations.poll();
-            if (next == null) {
-                Tasks.cancel(pump);
-                pump = null;
-                return;
-            }
-            next.run();
-        });
+        next.action().run();
+        pump = Tasks.later(plugin, Math.max(1, next.holdTicks()), this::runNext);
     }
 
     private void playSound(Sound sound, float pitch) {

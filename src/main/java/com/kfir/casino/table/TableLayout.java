@@ -14,7 +14,9 @@ import org.bukkit.World;
 public final class TableLayout {
 
     /** Gap between the centres of two neighbouring cards, in blocks. */
-    private static final double CARD_SPACING = 0.30;
+    private static final double CARD_SPACING = 0.46;
+    /** Widest a row of cards may spread before the cards start to overlap. */
+    private static final double MAX_ROW_SPAN = 2.1;
     /** How far the card rows sit from the middle of the table. */
     private static final double PLAYER_ROW = 0.55;
     private static final double DEALER_ROW = 0.60;
@@ -91,7 +93,8 @@ public final class TableLayout {
      * @param dealer   true for the dealer row, false for the player row
      */
     public Location cardSlot(int index, int handSize, boolean dealer) {
-        double offset = (index - (handSize - 1) / 2.0) * CARD_SPACING;
+        double spacing = handSize > 1 ? Math.min(CARD_SPACING, MAX_ROW_SPAN / (handSize - 1)) : 0;
+        double offset = (index - (handSize - 1) / 2.0) * spacing;
         double forward = dealer ? DEALER_ROW : -PLAYER_ROW;
         return at(forward, dealer ? -offset : offset, CARD_LIFT);
     }

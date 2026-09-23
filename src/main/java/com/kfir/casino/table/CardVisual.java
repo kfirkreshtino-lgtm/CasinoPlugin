@@ -26,12 +26,20 @@ import org.joml.Vector3f;
  */
 public final class CardVisual {
 
-    private static final float CARD_WIDTH = 0.34f;
-    private static final float CARD_HEIGHT = 0.48f;
+    /**
+     * Uniform scale of the text display. The card's shape comes from its text, three lines
+     * with a padded middle line, which gives a background of roughly 24 by 32 text pixels.
+     * At 0.025 blocks per text pixel this makes a card about 0.42 by 0.56 blocks.
+     */
+    private static final float CARD_SCALE = 0.7f;
+    /** Height of the card in blocks, used to pivot it about its centre. */
+    private static final float CARD_HEIGHT = 32 * 0.025f * CARD_SCALE;
+    /** How far the card is propped up off the felt towards the player, in degrees. */
+    private static final float TILT = 25f;
 
     private static final Color FACE_BACKGROUND = Color.fromARGB(255, 250, 250, 248);
     private static final Color BACK_BACKGROUND = Color.fromARGB(255, 130, 20, 28);
-    private static final String BACK_TEXT = "<color:#d8b45a>* *</color>";
+    private static final String BACK_TEXT = "<color:#d8b45a> \n  ◆  \n </color>";
 
     private final TextDisplay display;
     private final float yaw;
@@ -75,19 +83,26 @@ public final class CardVisual {
     /**
      * Lays the card flat on the table.
      *
-     * <p>A text display stands upright facing the viewer by default, so it is turned a
-     * quarter turn about X to lie down. Face down adds a half turn about Y, and removing
-     * that half turn is what the client animates as the card turning over.
+     * <p>A text display stands upright facing the viewer by default, so it is turned
+     * almost a quarter turn about X to lie down, stopping short by {@link #TILT} so the face
+     * leans towards the seated player instead of being seen edge on. Face down adds a half
+     * turn about Y, and removing that half turn is what the client animates as the card
+     * turning over.
+     *
+     * <p>A text display pivots on the bottom edge of its text, so the card is shifted by
+     * half its height to turn about its centre, then lifted clear of the felt.
      */
     private static Transformation flatTransform(boolean faceUp) {
-        Quaternionf rotation = new Quaternionf().rotateX((float) Math.toRadians(90));
+        Quaternionf rotation = new Quaternionf().rotateX((float) Math.toRadians(90 - TILT));
         if (!faceUp) {
             rotation.rotateY((float) Math.toRadians(180));
         }
+        Vector3f centre = rotation.transform(new Vector3f(0f, -CARD_HEIGHT / 2f, 0f));
+        centre.y += (float) (CARD_HEIGHT / 2f * Math.sin(Math.toRadians(TILT))) + 0.02f;
         return new Transformation(
-                new Vector3f(0f, 0f, 0f),
+                centre,
                 rotation,
-                new Vector3f(CARD_WIDTH, CARD_HEIGHT, 1f),
+                new Vector3f(CARD_SCALE, CARD_SCALE, CARD_SCALE),
                 new Quaternionf());
     }
 
@@ -128,11 +143,14 @@ public final class CardVisual {
         return Math.max(1, Math.min(59, ticks));
     }
 
-    /** Rank above suit, coloured for the suit, which reads as a card at a glance. */
+    /**
+     * Rank, suit, rank, coloured for the suit, which reads as a card at a glance. The
+     * spaces around the suit keep every card the same width whatever the rank.
+     */
     private static String face(Card card) {
         String color = card.suit().isRed() ? "#c01722" : "#101014";
-        return "<color:" + color + "><bold>" + card.rank().symbol() + "</bold>\n"
-                + card.suit().symbol() + "</color>";
+        String rank = "<bold>" + card.rank().symbol() + "</bold>";
+        return "<color:" + color + ">" + rank + "\n  " + card.suit().symbol() + "  \n" + rank + "</color>";
     }
 
     public boolean isFaceUp() {
