@@ -13,12 +13,11 @@ structure:
   spawn-labels: true
 
 economy:
-  # Currency cost of ONE chip. 2.0 means 100 chips costs 200 currency.
-  chip-price: 1.0
-  # Percentage kept by the house when a player sells chips back. 5.0 = 5% fee.
-  sell-fee-percent: 0.0
-  # Largest single buy/sell a player may request.
-  max-exchange: 100000
+  # Chips are bought with diamonds only. Chips a player gets for ONE diamond at the
+  # cashier. Cashing out pays diamonds back at the same rate.
+  chips-per-diamond: 10
+  # Most diamonds traded in a single buy or cash out.
+  max-exchange-diamonds: 640
 
 blackjack:
   min-bet: 5

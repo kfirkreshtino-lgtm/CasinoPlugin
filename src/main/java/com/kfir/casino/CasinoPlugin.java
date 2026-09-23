@@ -4,7 +4,6 @@ import com.kfir.casino.api.CasinoAPI;
 import com.kfir.casino.command.CasinoCommand;
 import com.kfir.casino.command.CasinoTabCompleter;
 import com.kfir.casino.economy.ChipBank;
-import com.kfir.casino.economy.VaultHook;
 import com.kfir.casino.game.GameManager;
 import com.kfir.casino.game.poker.PokerHook;
 import com.kfir.casino.game.poker.UnavailablePokerHook;
@@ -33,14 +32,11 @@ import java.util.UUID;
 /**
  * Plugin entry point and the object every other class hangs off.
  *
- * <p>Wiring order matters: config, then Vault, then storage, then the registries, then the
- * games. If Vault has no economy provider the plugin disables itself rather than running
- * with broken payouts.
+ * <p>Wiring order matters: config, then storage, then the registries, then the games.
  */
 public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
 
     private CasinoConfig config;
-    private VaultHook vault;
     private YamlChipStore chipStore;
     private ChipBank chipBank;
     private StationRegistry stations;
@@ -57,17 +53,9 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
         saveDefaultConfig();
         this.config = new CasinoConfig(getConfig());
 
-        this.vault = new VaultHook();
-        if (!vault.setup()) {
-            getLogger().severe("No Vault economy provider was found. Install Vault and an economy "
-                    + "plugin such as EssentialsX, then restart. Disabling.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
         this.chipStore = new YamlChipStore(this);
         this.chipStore.load();
-        this.chipBank = new ChipBank(this, vault, chipStore);
+        this.chipBank = new ChipBank(this, chipStore);
 
         this.stations = new StationRegistry();
         this.stationStore = new StationStore(this);
@@ -168,8 +156,8 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
     }
 
     @Override
-    public double chipPrice() {
-        return config.chipPrice();
+    public int chipsPerDiamond() {
+        return config.chipsPerDiamond();
     }
 
     @Override

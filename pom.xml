@@ -16,7 +16,6 @@
         <java.version>25</java.version>
         <!-- Single place to bump the server target. Must match api-version in plugin.yml. -->
         <paper.version>26.1.2.build.74-stable</paper.version>
-        <vault.version>1.7.1</vault.version>
         <junit.version>5.10.2</junit.version>
     </properties>
 
@@ -24,10 +23,6 @@
         <repository>
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
-        </repository>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
         </repository>
     </repositories>
 
@@ -37,19 +32,6 @@
             <artifactId>paper-api</artifactId>
             <version>${paper.version}</version>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.MilkBowl</groupId>
-            <artifactId>VaultAPI</artifactId>
-            <version>${vault.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.bukkit</groupId>
-                    <artifactId>bukkit</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>

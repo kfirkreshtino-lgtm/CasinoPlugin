@@ -16,7 +16,7 @@ public final class CasinoTabCompleter implements TabCompleter {
     private static final List<String> STATION_ACTIONS = List.of("add", "remove", "list");
     private static final List<String> STATION_TYPES = List.of("cashier", "blackjack", "roulette", "poker");
     private static final List<String> CHIP_ACTIONS = List.of("buy", "sell");
-    private static final List<String> CHIP_AMOUNTS = List.of("10", "50", "100", "500", "1000");
+    private static final List<String> CHIP_AMOUNTS = List.of("all", "1", "8", "16", "32", "64");
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command,

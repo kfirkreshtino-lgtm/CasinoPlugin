@@ -13,7 +13,7 @@ import org.bukkit.Location;
  * table sits inside the paste. Any edit to the build means re-exporting the file and
  * re-measuring those offsets. Procedural generation has none of that: the builder knows
  * exactly where it put each table, so it registers the stations itself and the plugin has
- * zero external dependencies beyond Vault.
+ * no external dependencies at all.
  *
  * <p>The interface stays here so a schematic implementation can be dropped in later
  * without any game code changing.

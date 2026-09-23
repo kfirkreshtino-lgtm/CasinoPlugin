@@ -10,7 +10,6 @@ through a published interface.
   the newest stable build of that release. PaperMC publishes per-build coordinates rather
   than a `-R0.1-SNAPSHOT` version.
 - Java 25 (Paper 26.1+ requires it)
-- Vault, plus an economy provider such as EssentialsX
 
 ## Building
 
@@ -36,9 +35,9 @@ agree with each other:
 | `/casino station remove` | `casino.admin` | Unregisters the block you are looking at |
 | `/casino station list` | `casino.admin` | Lists every registered station |
 | `/casino reload` | `casino.admin` | Reloads config.yml and stations.yml |
-| `/casino chips buy <amount>` | `casino.use` | Buys chips with currency |
-| `/casino chips sell <amount>` | `casino.use` | Cashes chips back into currency |
-| `/casino balance` | `casino.use` | Shows chips and money |
+| `/casino chips buy <diamonds\|all>` | `casino.use` | Trades diamonds from your inventory for chips |
+| `/casino chips sell <diamonds\|all>` | `casino.use` | Cashes chips back into diamonds |
+| `/casino balance` | `casino.use` | Shows chips and diamonds |
 | `/casino leave` | `casino.use` | Leaves your table and refunds open bets |
 
 `casino.admin` includes `casino.use`.
@@ -59,9 +58,9 @@ replays that snapshot, so building on a hillside is not destructive.
 A right-click on a registered block is unambiguous and needs no extra entity. A floating
 text display above each table names it.
 
-**Chips are separate from Vault money.** Buying withdraws currency once, cashing out
-deposits once, and every bet moves chips only. A failed economy transaction can therefore
-never land in the middle of a dealt hand.
+**Chips are bought with diamonds only.** The cashier takes plain diamonds from the
+inventory once, cashing out hands them back once at the same rate, and every bet moves
+chips only. No economy plugin is needed. The rate is `economy.chips-per-diamond`.
 
 **The game is played on a table, not in a chest.** Cards are display entities that slide
 out of the dealer shoe and turn face up where they land. Hand totals, the current bet and
@@ -121,8 +120,8 @@ CasinoAPI casino = Bukkit.getServicesManager().load(CasinoAPI.class);
 casino.registerPokerHook(new MyPokerHook());
 ```
 
-Move chips with `CasinoAPI.takeChips` and `CasinoAPI.giveChips`. Never call Vault directly
-from the poker module, or buy-ins and payouts will drift out of step with the cashier.
+Move chips with `CasinoAPI.takeChips` and `CasinoAPI.giveChips`. Never take or hand out
+diamonds directly from the poker module, or buy-ins and payouts will drift out of step with the cashier.
 
 `PokerHook` requires `openTable`, and should override `leave`, `isBusy`, `shutdown` and
 `moduleName`. `leave` and `shutdown` must refund every open pot.

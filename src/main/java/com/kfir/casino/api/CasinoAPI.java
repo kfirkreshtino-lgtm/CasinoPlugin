@@ -26,8 +26,8 @@ public interface CasinoAPI {
     /** Adds chips. */
     void giveChips(UUID playerId, long chips);
 
-    /** Currency cost of a single chip, from config.yml. */
-    double chipPrice();
+    /** Chips one diamond buys at the cashier, from config.yml. Chips are only bought with diamonds. */
+    int chipsPerDiamond();
 
     /** Every registered station of one type, for example all poker tables. */
     List<Station> stations(StationType type);

@@ -37,7 +37,12 @@ public final class BlackjackTableView implements BlackjackView {
     /** How long a card takes to slide out of the shoe. */
     private static final int SLIDE_TICKS = 10;
     /** How long a card takes to turn over. */
-    private static final int FLIP_TICKS = 8;
+    private static final int FLIP_TICKS = 10;
+    /**
+     * Ticks a new card waits at the shoe before sliding. A card that is spawned and moved
+     * in the same tick reaches the client already at its destination and never slides.
+     */
+    private static final int SPAWN_TICKS = 2;
     /**
      * Pause after the table stops moving before anything that waits for it, such as the
      * action menu, which covers the screen. Long enough to read the cards first.
@@ -136,18 +141,20 @@ public final class BlackjackTableView implements BlackjackView {
 
     @Override
     public void dealt(boolean dealer) {
-        List<CardVisual> row = dealer ? dealerCards : playerCards;
-        int index = row.size();
-        CardVisual visual = CardVisual.spawn(layout.shoe(), layout.yaw());
-        row.add(visual);
-
         enqueue(() -> {
-            layoutRow(dealer);
+            // The card only appears when its turn comes, so the shoe never holds a pile of
+            // cards waiting to be dealt.
+            List<CardVisual> row = dealer ? dealerCards : playerCards;
+            int index = row.size();
+            CardVisual visual = CardVisual.spawn(plugin, layout.shoe(), layout.yaw());
+            row.add(visual);
             playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.4f);
+            Tasks.later(plugin, SPAWN_TICKS, () -> layoutRow(dealer));
+
             Card card = cardAt(dealer, index);
             boolean hole = dealer && index == 1;
             if (card != null && !hole) {
-                Tasks.later(plugin, SLIDE_TICKS, () -> visual.reveal(card, FLIP_TICKS));
+                Tasks.later(plugin, SPAWN_TICKS + SLIDE_TICKS, () -> visual.reveal(card, FLIP_TICKS));
             }
             render();
         }, STAGGER);
@@ -198,7 +205,7 @@ public final class BlackjackTableView implements BlackjackView {
     public void whenSettled(Runnable action) {
         // The last card may still be sliding and turning over, so wait for that to finish
         // and then give the player a moment to read the table.
-        enqueue(() -> { }, SLIDE_TICKS + FLIP_TICKS + READ_TICKS);
+        enqueue(() -> { }, SPAWN_TICKS + SLIDE_TICKS + FLIP_TICKS + READ_TICKS);
         enqueue(action, 0);
     }
 

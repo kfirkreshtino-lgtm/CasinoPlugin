@@ -12,9 +12,8 @@ public final class CasinoConfig {
     private final Vector structureOffset;
     private final boolean spawnLabels;
 
-    private final double chipPrice;
-    private final double sellFeePercent;
-    private final long maxExchange;
+    private final int chipsPerDiamond;
+    private final int maxExchangeDiamonds;
 
     private final long blackjackMinBet;
     private final long blackjackMaxBet;
@@ -42,9 +41,8 @@ public final class CasinoConfig {
                 c.getInt("structure.offset.z", 12));
         this.spawnLabels = c.getBoolean("structure.spawn-labels", true);
 
-        this.chipPrice = Math.max(0.0001, c.getDouble("economy.chip-price", 1.0));
-        this.sellFeePercent = Math.min(Math.max(c.getDouble("economy.sell-fee-percent", 0.0), 0.0), 100.0);
-        this.maxExchange = Math.max(1, c.getLong("economy.max-exchange", 100000));
+        this.chipsPerDiamond = Math.max(1, c.getInt("economy.chips-per-diamond", 10));
+        this.maxExchangeDiamonds = Math.max(1, c.getInt("economy.max-exchange-diamonds", 640));
 
         this.blackjackMinBet = Math.max(1, c.getLong("blackjack.min-bet", 5));
         this.blackjackMaxBet = Math.max(blackjackMinBet, c.getLong("blackjack.max-bet", 500));
@@ -84,16 +82,12 @@ public final class CasinoConfig {
         return spawnLabels;
     }
 
-    public double chipPrice() {
-        return chipPrice;
+    public int chipsPerDiamond() {
+        return chipsPerDiamond;
     }
 
-    public double sellFeePercent() {
-        return sellFeePercent;
-    }
-
-    public long maxExchange() {
-        return maxExchange;
+    public int maxExchangeDiamonds() {
+        return maxExchangeDiamonds;
     }
 
     public long blackjackMinBet() {

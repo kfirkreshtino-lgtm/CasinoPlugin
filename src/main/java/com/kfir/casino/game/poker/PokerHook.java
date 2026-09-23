@@ -21,8 +21,8 @@ import java.util.UUID;
  * </pre>
  *
  * <p>Chips are moved with {@code CasinoAPI.takeChips} and {@code CasinoAPI.giveChips}.
- * Never touch Vault directly from the poker module, or buy-ins and payouts will drift
- * out of step with the cashier.
+ * Never take or hand out diamonds directly from the poker module, or buy-ins and payouts
+ * will drift out of step with the cashier.
  */
 public interface PokerHook {
 

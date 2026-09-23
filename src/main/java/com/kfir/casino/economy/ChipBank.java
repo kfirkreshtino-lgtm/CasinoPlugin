@@ -4,26 +4,32 @@ import com.kfir.casino.CasinoConfig;
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.storage.ChipStore;
 import com.kfir.casino.util.Text;
+import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Chips are a balance separate from Vault money.
+ * Chips are a balance of their own, bought and cashed out with diamonds.
  *
- * <p>Design note: games never touch Vault directly. Buying chips withdraws currency once,
- * cashing out deposits it once, and every bet moves chips only. That keeps a failed economy
- * transaction from ever landing in the middle of a dealt hand.
+ * <p>Design note: games never touch diamonds directly. Buying chips takes diamonds from the
+ * inventory once, cashing out hands them back once, and every bet moves chips only. That
+ * keeps a full inventory from ever landing in the middle of a dealt hand.
+ *
+ * <p>Only plain diamonds count. A renamed diamond is left alone, so a player cannot lose a
+ * named keepsake to the cashier by accident.
  */
 public final class ChipBank {
 
     private final CasinoPlugin plugin;
-    private final VaultHook vault;
     private final ChipStore store;
 
-    public ChipBank(CasinoPlugin plugin, VaultHook vault, ChipStore store) {
+    public ChipBank(CasinoPlugin plugin, ChipStore store) {
         this.plugin = plugin;
-        this.vault = vault;
         this.store = store;
     }
 
@@ -55,53 +61,78 @@ public final class ChipBank {
         store.set(playerId, store.get(playerId) + chips);
     }
 
-    /** Buys chips with Vault currency. */
-    public ExchangeResult buy(OfflinePlayer player, long chips) {
+    /** Plain diamonds in the player's inventory. */
+    public int diamonds(Player player) {
+        int count = 0;
+        PlayerInventory inventory = player.getInventory();
+        for (ItemStack stack : inventory.getStorageContents()) {
+            if (stack != null && stack.isSimilar(new ItemStack(Material.DIAMOND))) {
+                count += stack.getAmount();
+            }
+        }
+        return count;
+    }
+
+    /** Most diamonds the player's chips could be cashed out for. */
+    public int diamondsForChips(Player player) {
+        long whole = balance(player) / plugin.config().chipsPerDiamond();
+        return (int) Math.min(whole, plugin.config().maxExchangeDiamonds());
+    }
+
+    /** Trades diamonds from the inventory for chips. */
+    public ExchangeResult buy(Player player, int diamonds) {
         CasinoConfig config = plugin.config();
-        if (chips <= 0) {
-            return ExchangeResult.fail("<red>Enter a chip amount above zero.</red>");
+        if (diamonds <= 0) {
+            return ExchangeResult.fail("<red>You need at least one diamond to buy chips.</red>");
         }
-        if (chips > config.maxExchange()) {
-            return ExchangeResult.fail("<red>You cannot buy more than " + Text.chips(config.maxExchange())
-                    + " chips at once.</red>");
+        if (diamonds > config.maxExchangeDiamonds()) {
+            return ExchangeResult.fail("<red>You cannot trade more than " + config.maxExchangeDiamonds()
+                    + " diamonds at once.</red>");
         }
-        double cost = chips * config.chipPrice();
-        if (!vault.has(player, cost)) {
-            return ExchangeResult.fail("<red>You need " + vault.format(cost) + " but only have "
-                    + vault.format(vault.balance(player)) + ".</red>");
+        int held = diamonds(player);
+        if (held < diamonds) {
+            return ExchangeResult.fail("<red>You need " + diamonds + " diamonds but only have " + held + ".</red>");
         }
-        if (!vault.withdraw(player, cost)) {
-            return ExchangeResult.fail("<red>The economy plugin refused the withdrawal.</red>");
+        Map<Integer, ItemStack> missing = player.getInventory().removeItem(new ItemStack(Material.DIAMOND, diamonds));
+        if (!missing.isEmpty()) {
+            // Counted a moment ago, so this should not happen. Put back what was taken.
+            int shortBy = missing.values().stream().mapToInt(ItemStack::getAmount).sum();
+            player.getInventory().addItem(new ItemStack(Material.DIAMOND, diamonds - shortBy));
+            return ExchangeResult.fail("<red>Could not take the diamonds. Nothing was changed.</red>");
         }
+        long chips = (long) diamonds * config.chipsPerDiamond();
         give(player.getUniqueId(), chips);
-        return ExchangeResult.ok("<green>Bought <white>" + Text.chips(chips) + "</white> chips for <white>"
-                + vault.format(cost) + "</white>.</green>", chips, cost);
+        return ExchangeResult.ok("<green>Bought <white>" + Text.chips(chips) + "</white> chips for <aqua>"
+                + diamonds + " " + plural(diamonds) + "</aqua>.</green>", chips, diamonds);
     }
 
-    /** Sells chips back for Vault currency, minus the configured house fee. */
-    public ExchangeResult sell(OfflinePlayer player, long chips) {
+    /**
+     * Cashes chips back into diamonds at the buying rate. Diamonds that do not fit in the
+     * inventory are dropped at the player's feet rather than lost.
+     */
+    public ExchangeResult sell(Player player, int diamonds) {
         CasinoConfig config = plugin.config();
-        if (chips <= 0) {
-            return ExchangeResult.fail("<red>Enter a chip amount above zero.</red>");
+        if (diamonds <= 0) {
+            return ExchangeResult.fail("<red>You need chips worth at least one diamond. One diamond is "
+                    + Text.chips(config.chipsPerDiamond()) + " chips.</red>");
         }
-        if (chips > config.maxExchange()) {
-            return ExchangeResult.fail("<red>You cannot sell more than " + Text.chips(config.maxExchange())
-                    + " chips at once.</red>");
+        if (diamonds > config.maxExchangeDiamonds()) {
+            return ExchangeResult.fail("<red>You cannot trade more than " + config.maxExchangeDiamonds()
+                    + " diamonds at once.</red>");
         }
+        long chips = (long) diamonds * config.chipsPerDiamond();
         if (!take(player.getUniqueId(), chips)) {
-            return ExchangeResult.fail("<red>You only have " + Text.chips(balance(player)) + " chips.</red>");
+            return ExchangeResult.fail("<red>" + diamonds + " " + plural(diamonds) + " cost "
+                    + Text.chips(chips) + " chips, you have " + Text.chips(balance(player)) + ".</red>");
         }
-        double gross = chips * config.chipPrice();
-        double payout = gross * (1.0 - config.sellFeePercent() / 100.0);
-        if (!vault.deposit(player, payout)) {
-            give(player.getUniqueId(), chips);
-            return ExchangeResult.fail("<red>The economy plugin refused the deposit. Your chips were returned.</red>");
-        }
-        return ExchangeResult.ok("<green>Sold <white>" + Text.chips(chips) + "</white> chips for <white>"
-                + vault.format(payout) + "</white>.</green>", chips, payout);
+        Map<Integer, ItemStack> leftover = player.getInventory().addItem(new ItemStack(Material.DIAMOND, diamonds));
+        leftover.values().forEach(stack -> player.getWorld().dropItemNaturally(player.getLocation(), stack));
+        String dropped = leftover.isEmpty() ? "" : " <yellow>Your inventory is full, the rest are at your feet.</yellow>";
+        return ExchangeResult.ok("<green>Cashed out <white>" + Text.chips(chips) + "</white> chips for <aqua>"
+                + diamonds + " " + plural(diamonds) + "</aqua>.</green>" + dropped, chips, diamonds);
     }
 
-    public VaultHook vault() {
-        return vault;
+    private static String plural(int diamonds) {
+        return diamonds == 1 ? "diamond" : "diamonds";
     }
 }

@@ -186,23 +186,34 @@ public final class CasinoCommand implements CommandExecutor {
             return;
         }
         if (args.length < 3) {
-            plugin.message(player, "<gray>Usage: <white>/casino chips buy 100</white> "
-                    + "or <white>/casino chips sell 100</white></gray>");
+            plugin.message(player, "<gray>Usage: <white>/casino chips buy 5</white> to trade 5 diamonds "
+                    + "for chips, or <white>/casino chips sell 5</white> to cash out 5 diamonds. "
+                    + "<white>all</white> works for either.</gray>");
             return;
         }
-        long amount;
-        try {
-            amount = Long.parseLong(args[2]);
-        } catch (NumberFormatException ex) {
-            plugin.message(player, "<red><white>" + args[2] + "</white> is not a whole number.</red>");
+        String action = args[1].toLowerCase();
+        boolean buying = action.equals("buy");
+        if (!buying && !action.equals("sell") && !action.equals("cash") && !action.equals("cashout")) {
+            plugin.message(player, "<gray>Usage: <white>/casino chips buy|sell 5</white></gray>");
             return;
+        }
+        int diamonds;
+        if (args[2].equalsIgnoreCase("all")) {
+            diamonds = buying
+                    ? Math.min(plugin.chipBank().diamonds(player), plugin.config().maxExchangeDiamonds())
+                    : plugin.chipBank().diamondsForChips(player);
+        } else {
+            try {
+                diamonds = Integer.parseInt(args[2]);
+            } catch (NumberFormatException ex) {
+                plugin.message(player, "<red><white>" + args[2] + "</white> is not a whole number of diamonds.</red>");
+                return;
+            }
         }
 
-        ExchangeResult result = switch (args[1].toLowerCase()) {
-            case "buy" -> plugin.chipBank().buy(player, amount);
-            case "sell", "cash", "cashout" -> plugin.chipBank().sell(player, amount);
-            default -> ExchangeResult.fail("<gray>Usage: <white>/casino chips buy|sell 100</white></gray>");
-        };
+        ExchangeResult result = buying
+                ? plugin.chipBank().buy(player, diamonds)
+                : plugin.chipBank().sell(player, diamonds);
         plugin.message(player, result.message());
         if (result.success()) {
             plugin.message(player, "<gray>Chip balance: <white>"
@@ -219,10 +230,9 @@ public final class CasinoCommand implements CommandExecutor {
         }
         plugin.message(player, "<gold>Chips: <white>"
                 + Text.chips(plugin.chipBank().balance(player)) + "</white></gold>");
-        plugin.message(player, "<gray>Money: <white>"
-                + plugin.chipBank().vault().format(plugin.chipBank().vault().balance(player))
-                + "</white>, one chip costs <white>" + Text.money(plugin.config().chipPrice())
-                + "</white></gray>");
+        plugin.message(player, "<gray>Diamonds: <aqua>" + plugin.chipBank().diamonds(player)
+                + "</aqua>, one diamond buys <white>" + Text.chips(plugin.config().chipsPerDiamond())
+                + "</white> chips</gray>");
     }
 
     private void leave(CommandSender sender) {
@@ -244,9 +254,9 @@ public final class CasinoCommand implements CommandExecutor {
     private void help(CommandSender sender) {
         plugin.message(sender, "<gold><bold>Casino</bold></gold>");
         if (sender.hasPermission("casino.use")) {
-            plugin.message(sender, "<gray>/casino chips buy 100 <dark_gray>- buy chips</dark_gray></gray>");
-            plugin.message(sender, "<gray>/casino chips sell 100 <dark_gray>- cash out</dark_gray></gray>");
-            plugin.message(sender, "<gray>/casino balance <dark_gray>- your chips and money</dark_gray></gray>");
+            plugin.message(sender, "<gray>/casino chips buy 5 <dark_gray>- trade diamonds for chips</dark_gray></gray>");
+            plugin.message(sender, "<gray>/casino chips sell 5 <dark_gray>- cash chips out into diamonds</dark_gray></gray>");
+            plugin.message(sender, "<gray>/casino balance <dark_gray>- your chips and diamonds</dark_gray></gray>");
             plugin.message(sender, "<gray>/casino leave <dark_gray>- leave your table</dark_gray></gray>");
         }
         if (sender.hasPermission("casino.admin")) {

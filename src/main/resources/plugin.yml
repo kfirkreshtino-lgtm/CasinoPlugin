@@ -4,7 +4,6 @@ main: com.kfir.casino.CasinoPlugin
 api-version: '26.1'
 authors: [kfir]
 description: A full casino for Paper servers - Blackjack, Roulette and a pluggable Poker module.
-depend: [Vault]
 softdepend: []
 
 commands:
@@ -17,8 +16,8 @@ commands:
       /casino station remove - unregister the block you are looking at
       /casino station list - list registered stations
       /casino reload - reload config.yml
-      /casino chips buy <amount> - buy chips with currency
-      /casino chips sell <amount> - sell chips for currency
+      /casino chips buy <diamonds|all> - trade diamonds for chips
+      /casino chips sell <diamonds|all> - cash chips out into diamonds
       /casino balance - show your chip balance
       /casino leave - leave your current game and refund open bets
     aliases: [cas]

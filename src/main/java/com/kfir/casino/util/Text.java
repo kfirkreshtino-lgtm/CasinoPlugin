@@ -26,9 +26,4 @@ public final class Text {
     public static String chips(long amount) {
         return String.format("%,d", amount);
     }
-
-    /** Formats a currency amount to two decimal places. */
-    public static String money(double amount) {
-        return String.format("%,.2f", amount);
-    }
 }
