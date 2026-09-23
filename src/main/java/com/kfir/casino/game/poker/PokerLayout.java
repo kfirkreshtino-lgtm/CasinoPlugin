@@ -98,9 +98,29 @@ public final class PokerLayout {
         return at(SEAT_SIDE[seat], SEAT_END[seat] * CARD_ROW, 0.6);
     }
 
-    /** The chips a player has bet on this street. */
+    /** The chips a player has bet on this street, standing on the felt. */
     public Location bet(int seat) {
-        return at(SEAT_SIDE[seat], SEAT_END[seat] * BET_ROW, 0.05);
+        return at(SEAT_SIDE[seat], SEAT_END[seat] * BET_ROW, 0.0);
+    }
+
+    /** The amount of a player's bet, floating just over their bet chips. */
+    public Location betLabel(int seat) {
+        return at(SEAT_SIDE[seat], SEAT_END[seat] * BET_ROW, 0.3);
+    }
+
+    /**
+     * Chips a player has not bet yet, beside their cards on the side nearer the middle of
+     * the table, where the felt is deepest.
+     */
+    public Location playerChips(int seat) {
+        double side = SEAT_SIDE[seat];
+        double towardMiddle = side == 0 ? -0.6 : -Math.signum(side) * 0.6;
+        return at(side + towardMiddle, SEAT_END[seat] * CARD_ROW, 0.0);
+    }
+
+    /** The pot, beside the board. */
+    public Location pot() {
+        return at(1.2, 0, 0.0);
     }
 
     /** The dealer button, just beside the player who has it. */

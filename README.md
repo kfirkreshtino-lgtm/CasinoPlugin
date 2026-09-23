@@ -109,8 +109,10 @@ afford in one round. True adjacency bets (split, street, corner, line) are not i
 because selecting them needs a physical layout grid. European single zero is the default;
 American is a config change.
 
-**Texas Hold'em** is played at oval six-seat tables with a felt top, a wooden rail and
-chairs. Right-click any part of a table to choose a buy-in and sit down. Chips you bring
+**Texas Hold'em** is played at real-looking six-seat tables: a smooth oval of thin felt inside a
+raised wooden rail on two pedestals, chairs, an oval carpet, and a dealer in a suit beside a
+card shoe who reaches out whenever cards are dealt. Chips are real stacks on the felt, one
+colour per value, in front of each player, on each bet and in the pot. Right-click any part of a table to choose a buy-in and sit down. Chips you bring
 leave your balance and stay on the table until you stand up, walk away or disconnect.
 
 A hand needs at least two players (`poker.min-players`). Once enough are seated a countdown

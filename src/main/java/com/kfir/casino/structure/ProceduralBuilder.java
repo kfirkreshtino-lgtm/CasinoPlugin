@@ -3,6 +3,8 @@ package com.kfir.casino.structure;
 import com.kfir.casino.station.Station;
 import com.kfir.casino.station.StationType;
 import com.kfir.casino.util.Text;
+import com.kfir.casino.game.poker.PokerTable;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -10,10 +12,17 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Lantern;
-import org.bukkit.block.data.type.Slab;
 import org.bukkit.block.data.type.Stairs;
+import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
+import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.util.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +36,9 @@ import java.util.UUID;
  * three top with a coloured centre block. That centre block is the station a player
  * right-clicks, and a floating label names it.
  *
- * <p>Poker tables are built as real card tables instead: an oval of felt inside a padded
- * wooden rail, six chairs around it and lanterns hanging over it.
+ * <p>Poker tables are built as real card tables instead: a smooth oval of felt inside a
+ * raised wooden rail on two pedestals, six chairs, a dealer, a card shoe, a carpet and
+ * lanterns hanging over it.
  */
 public final class ProceduralBuilder implements StructureBuilder {
 
@@ -43,6 +53,14 @@ public final class ProceduralBuilder implements StructureBuilder {
     private static final int[][] BLACKJACK_SEATS = {{3, 1, 6}, {7, 1, 6}, {11, 1, 6}, {15, 1, 6}};
     /** Middle of each poker table's felt, which is also its station block. */
     private static final int[][] POKER_TABLES = {{5, 1, 13}, {14, 1, 13}};
+
+    /** Poker felt and rail ellipses: half the length and half the depth, in blocks. */
+    private static final double FELT_A = 3.1;
+    private static final double FELT_B = 1.6;
+    private static final double RAIL_A = 3.65;
+    private static final double RAIL_B = 2.15;
+    /** Width of each display slice the oval is built from. Smaller is smoother. */
+    private static final double SLICE = 0.25;
     private static final int[] ROULETTE_SPOT = {20, 1, 6};
     private static final int[] CASHIER_SPOT = {20, 1, 15};
 
@@ -84,7 +102,7 @@ public final class ProceduralBuilder implements StructureBuilder {
         }
         index = 1;
         for (int[] spot : POKER_TABLES) {
-            stations.add(pokerTable(world, ox, oy, oz, spot, idPrefix + "poker-" + index++));
+            stations.add(pokerTable(world, ox, oy, oz, spot, idPrefix + "poker-" + index++, markers));
         }
         stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1"));
         stations.add(table(world, ox, oy, oz, CASHIER_SPOT, StationType.CASHIER, idPrefix + "cashier-1"));
@@ -184,46 +202,94 @@ public final class ProceduralBuilder implements StructureBuilder {
     }
 
     /**
-     * A six seat poker table, long side running east to west.
+     * A six seat poker table that looks like a real one.
      *
-     * <pre>
-     *      . s s s s s .      s = rail, a dark oak slab in the top half of the block so it
-     *    c s f f f f f s c        sits flush with the felt and overhangs like a real rail
-     *      s f f F f f s      f = felt, F = the station block in the middle
-     *    c s f f f f f s c    c = chair
-     *      . s s s s s .      . = left empty, which rounds the corners off
-     * </pre>
+     * <p>Blocks can only make boxes, so the visible table is built from display entities:
+     * the felt and the rail are thin slices following two ellipses, which gives a smooth
+     * oval with a raised padded rail around a thin felt top. Two wooden pedestals hold it
+     * up, a dealer in a suit stands at the east end beside the card shoe, and an oval
+     * carpet lies underneath.
      *
-     * The chairs sit at two blocks either side of the middle and in the middle of each long
+     * <p>Underneath the displays the table is barrier blocks. They are invisible but solid,
+     * so players cannot walk through the table, and right-clicking them hits the table.
+     * The middle one is the station block.
+     *
+     * <p>Chairs are two blocks either side of the middle and in the middle of each long
      * side, where {@link com.kfir.casino.game.poker.PokerLayout} seats the players.
+     *
+     * @param decorations collects every entity spawned, so removing the casino removes them
      */
-    private Station pokerTable(World world, int ox, int oy, int oz, int[] spot, String id) {
+    private Station pokerTable(World world, int ox, int oy, int oz, int[] spot, String id, List<UUID> decorations) {
         int cx = ox + spot[0];
         int cy = oy + spot[1];
         int cz = oz + spot[2];
+        // Everything below is measured from the middle of the station block, at floor level.
+        double mx = cx + 0.5;
+        double mz = cz + 0.5;
 
-        Slab rail = (Slab) Material.DARK_OAK_SLAB.createBlockData();
-        rail.setType(Slab.Type.TOP);
-
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                boolean corner = Math.abs(dx) == 3 && Math.abs(dz) == 2;
-                boolean edge = Math.abs(dx) == 3 || Math.abs(dz) == 2;
-                if (corner) {
-                    set(world, cx + dx, cy, cz + dz, Material.AIR);
-                } else if (edge) {
-                    setData(world, cx + dx, cy, cz + dz, rail);
-                } else {
-                    set(world, cx + dx, cy, cz + dz, Material.GREEN_WOOL);
+        // Solid, clickable, invisible core covering the oval and its rail.
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                if (inside(dx, dz, RAIL_A + 0.3, RAIL_B + 0.3)) {
+                    set(world, cx + dx, cy, cz + dz, Material.BARRIER);
                 }
             }
         }
+
+        // Felt and rail, one thin slice at a time along the long side.
+        BlockData felt = Material.GREEN_WOOL.createBlockData();
+        BlockData rail = Material.STRIPPED_DARK_OAK_WOOD.createBlockData();
+        int slices = (int) Math.ceil(2 * RAIL_A / SLICE);
+        for (int i = 0; i < slices; i++) {
+            double x0 = -RAIL_A + i * SLICE;
+            double mid = x0 + SLICE / 2;
+            double outer = halfDepth(mid, RAIL_A, RAIL_B);
+            double inner = halfDepth(mid, FELT_A, FELT_B);
+            if (outer < 0.05) {
+                continue;
+            }
+            if (inner > 0) {
+                decorations.add(box(world, felt, mx + x0, cy + 0.88, mz - inner, SLICE, 0.12, 2 * inner));
+                decorations.add(box(world, rail, mx + x0, cy + 0.82, mz + inner, SLICE, 0.25, outer - inner));
+                decorations.add(box(world, rail, mx + x0, cy + 0.82, mz - outer, SLICE, 0.25, outer - inner));
+            } else {
+                decorations.add(box(world, rail, mx + x0, cy + 0.82, mz - outer, SLICE, 0.25, 2 * outer));
+            }
+        }
+
+        // Two pedestals, each a post on a wide foot.
+        BlockData post = Material.STRIPPED_DARK_OAK_LOG.createBlockData();
+        BlockData foot = Material.DARK_OAK_PLANKS.createBlockData();
+        for (int sign = -1; sign <= 1; sign += 2) {
+            double px = mx + sign * 1.7;
+            decorations.add(box(world, post, px - 0.15, cy, mz - 0.15, 0.3, 0.82, 0.3));
+            decorations.add(box(world, foot, px - 0.3, cy, mz - 0.6, 0.6, 0.08, 1.2));
+        }
+
+        // The card shoe on the felt in front of the dealer.
+        decorations.add(box(world, Material.BLACK_CONCRETE.createBlockData(),
+                mx + 2.74, cy + 1.0, mz - 0.15, 0.22, 0.14, 0.3));
+        decorations.add(box(world, Material.RED_CONCRETE.createBlockData(),
+                mx + 2.76, cy + 1.14, mz - 0.13, 0.18, 0.01, 0.26));
 
         // Three chairs on each long side, backs away from the table.
         for (int dx = -2; dx <= 2; dx += 2) {
             setData(world, cx + dx, cy, cz + 3, chair(BlockFace.SOUTH));
             setData(world, cx + dx, cy, cz - 3, chair(BlockFace.NORTH));
         }
+
+        // An oval carpet under everything, red with a black border, only where it is empty.
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                double ring = (dx * dx) / (5.3 * 5.3) + (dz * dz) / (4.3 * 4.3);
+                Block block = world.getBlockAt(cx + dx, cy, cz + dz);
+                if (ring <= 1.0 && block.getType() == Material.AIR) {
+                    block.setType(ring > 0.72 ? Material.BLACK_CARPET : Material.RED_CARPET, false);
+                }
+            }
+        }
+
+        decorations.add(dealer(world, mx + 3.95, cy + 0.0625, mz));
 
         Lantern lantern = (Lantern) Material.LANTERN.createBlockData();
         lantern.setHanging(true);
@@ -234,6 +300,67 @@ public final class ProceduralBuilder implements StructureBuilder {
         centre.setYaw(0f);
         centre.setPitch(0f);
         return new Station(id, StationType.POKER, centre);
+    }
+
+    /** Whether a block offset from the middle lies inside an ellipse. */
+    private static boolean inside(double dx, double dz, double a, double b) {
+        return (dx * dx) / (a * a) + (dz * dz) / (b * b) <= 1.0;
+    }
+
+    /** Half the depth of an ellipse at a point along its long axis, or 0 outside it. */
+    private static double halfDepth(double x, double a, double b) {
+        double t = 1.0 - (x * x) / (a * a);
+        return t <= 0 ? 0 : b * Math.sqrt(t);
+    }
+
+    /** A scaled block display filling a box, given its lowest corner and size. */
+    private static UUID box(World world, BlockData block, double x, double y, double z,
+                            double sizeX, double sizeY, double sizeZ) {
+        Location corner = new Location(world, x, y, z);
+        BlockDisplay display = world.spawn(corner, BlockDisplay.class, entity -> {
+            entity.setBlock(block);
+            entity.setPersistent(true);
+            entity.setTransformation(new Transformation(
+                    new Vector3f(),
+                    new Quaternionf(),
+                    new Vector3f((float) sizeX, (float) sizeY, (float) sizeZ),
+                    new Quaternionf()));
+        });
+        return display.getUniqueId();
+    }
+
+    /** The dealer: a figure in a black suit at the end of the table, facing the players. */
+    private static UUID dealer(World world, double x, double y, double z) {
+        Location where = new Location(world, x, y, z, 90f, 0f);
+        Mannequin dealer = world.spawn(where, Mannequin.class, entity -> {
+            entity.setAI(false);
+            entity.setGravity(false);
+            entity.setImmovable(true);
+            entity.setInvulnerable(true);
+            entity.setSilent(true);
+            entity.setCollidable(false);
+            entity.setPersistent(true);
+            entity.setRemoveWhenFarAway(false);
+            entity.customName(Text.mm("<gold>Dealer</gold>"));
+            entity.setCustomNameVisible(true);
+            entity.setDescription(Text.mm("<gray>Texas Hold'em</gray>"));
+            entity.addScoreboardTag(PokerTable.DEALER_TAG);
+
+            EntityEquipment gear = entity.getEquipment();
+            gear.setChestplate(suit(Material.LEATHER_CHESTPLATE));
+            gear.setLeggings(suit(Material.LEATHER_LEGGINGS));
+            gear.setBoots(suit(Material.LEATHER_BOOTS));
+        });
+        return dealer.getUniqueId();
+    }
+
+    private static ItemStack suit(Material piece) {
+        ItemStack item = new ItemStack(piece);
+        if (item.getItemMeta() instanceof LeatherArmorMeta meta) {
+            meta.setColor(Color.fromRGB(24, 24, 28));
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     /** A dark oak chair. Stairs face the side their tall back is on. */

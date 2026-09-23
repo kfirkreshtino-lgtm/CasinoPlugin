@@ -9,6 +9,8 @@ import com.kfir.casino.table.Seat;
 import com.kfir.casino.util.Tasks;
 import com.kfir.casino.util.Text;
 import org.bukkit.Sound;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -55,6 +57,8 @@ public final class PokerTable {
     private static final double LEAVE_DISTANCE_SQUARED = 10 * 10;
     /** An empty table is packed away after this long, which leaves time to pick a buy-in. */
     private static final int EMPTY_SECONDS_BEFORE_CLOSING = 60;
+    /** Scoreboard tag the building gives the dealer standing at each poker table. */
+    public static final String DEALER_TAG = "casino_dealer";
 
     private static final class TableSeat {
         final UUID id;
@@ -86,6 +90,7 @@ public final class PokerTable {
     private BukkitTask pending;
     private int emptySeconds;
     private boolean closed;
+    private LivingEntity dealer;
 
     PokerTable(CasinoPlugin plugin, Station station) {
         this.plugin = plugin;
@@ -321,6 +326,7 @@ public final class PokerTable {
             view.dealHole(p.seat(), p.hole(), plugin.getServer().getPlayer(p.id()));
         }
         view.moveButton(buttonSeat);
+        dealerGesture();
         broadcast("<gold>New hand.</gold> <aqua>" + seats[buttonSeat].name + "</aqua> <gray>has the button. "
                 + "Blinds <white>" + Text.chips(config.pokerSmallBlind()) + "/"
                 + Text.chips(config.pokerBigBlind()) + "</white>.</gray>");
@@ -358,6 +364,7 @@ public final class PokerTable {
                         view.showBoard(hand.board());
                         if (hand.phase() != HoldemHand.Phase.FINISHED) {
                             playAll(Sound.ITEM_BOOK_PAGE_TURN, 1.0f);
+                            dealerGesture();
                         }
                         onHandChanged();
                     });
@@ -503,11 +510,34 @@ public final class PokerTable {
 
     private void render() {
         view.setCentre(centreText());
+        boolean betting = state == State.IN_HAND;
+        long onStreet = 0;
         for (int i = 0; i < seats.length; i++) {
             view.setSeat(i, seatText(i));
             HandPlayer p = inHand(i);
-            view.setBet(i, p != null && p.bet() > 0
-                    ? "<yellow>" + Text.chips(p.bet()) + "</yellow>" : null);
+            long bet = betting && p != null ? p.bet() : 0;
+            long behind = seats[i] == null ? 0 : p != null ? p.stack() : seats[i].stack;
+            onStreet += bet;
+            view.setChips(i, behind, bet);
+            view.setBet(i, bet > 0 ? "<yellow>" + Text.chips(bet) + "</yellow>" : null);
+        }
+        // Bets are pushed into the pot when a street ends, like a dealer sweeping them in.
+        view.setPot(betting ? hand.pot() - onStreet : 0);
+    }
+
+    /** The dealer at this table reaches out, as if dealing. Tables without one skip this. */
+    private void dealerGesture() {
+        if (dealer == null || dealer.isDead() || !dealer.isValid()) {
+            dealer = null;
+            for (Entity entity : layout.centre().getNearbyEntities(6, 3, 6)) {
+                if (entity instanceof LivingEntity living && entity.getScoreboardTags().contains(DEALER_TAG)) {
+                    dealer = living;
+                    break;
+                }
+            }
+        }
+        if (dealer != null) {
+            dealer.swingMainHand();
         }
     }
 

@@ -3,6 +3,7 @@ package com.kfir.casino.game.poker;
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.game.card.Card;
 import com.kfir.casino.table.CardVisual;
+import com.kfir.casino.table.ChipStack;
 import com.kfir.casino.table.Hologram;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -17,7 +18,8 @@ import java.util.Map;
  * button and the floating labels.
  *
  * <p>Cards look exactly like the blackjack cards. The difference is the hole cards, which
- * are private: see {@link HoleCard}.
+ * are private: see {@link HoleCard}. Chips are real piles on the felt: what each player has
+ * in front of them, what they have bet on this street, and the pot.
  */
 final class PokerTableView {
 
@@ -27,6 +29,9 @@ final class PokerTableView {
     private final Hologram centre;
     private final Hologram[] seatLabels = new Hologram[PokerLayout.SEATS];
     private final Hologram[] bets = new Hologram[PokerLayout.SEATS];
+    private final ChipStack[] playerChips = new ChipStack[PokerLayout.SEATS];
+    private final ChipStack[] betChips = new ChipStack[PokerLayout.SEATS];
+    private final ChipStack pot;
     private Hologram dealerButton;
 
     private final Map<Integer, List<HoleCard>> hole = new HashMap<>();
@@ -38,7 +43,20 @@ final class PokerTableView {
         this.centre = Hologram.spawn(layout.centreLabel(), "", 0.8f);
         for (int seat = 0; seat < PokerLayout.SEATS; seat++) {
             seatLabels[seat] = Hologram.spawn(layout.seatLabel(seat), "", 0.55f);
+            playerChips[seat] = new ChipStack(layout.playerChips(seat));
+            betChips[seat] = new ChipStack(layout.bet(seat));
         }
+        this.pot = new ChipStack(layout.pot());
+    }
+
+    /** Piles up a player's chips and their bet on this street. */
+    void setChips(int seat, long behind, long bet) {
+        playerChips[seat].set(behind);
+        betChips[seat].set(bet);
+    }
+
+    void setPot(long amount) {
+        pot.set(amount);
     }
 
     void setCentre(String text) {
@@ -59,7 +77,7 @@ final class PokerTableView {
             return;
         }
         if (bets[seat] == null) {
-            bets[seat] = Hologram.spawn(layout.bet(seat), text, 0.5f);
+            bets[seat] = Hologram.spawn(layout.betLabel(seat), text, 0.5f);
         } else {
             bets[seat].setText(text);
         }
@@ -116,7 +134,9 @@ final class PokerTableView {
         board.clear();
         for (int seat = 0; seat < PokerLayout.SEATS; seat++) {
             setBet(seat, null);
+            betChips[seat].set(0);
         }
+        pot.set(0);
         if (dealerButton != null) {
             dealerButton.remove();
             dealerButton = null;
@@ -129,6 +149,11 @@ final class PokerTableView {
         for (Hologram label : seatLabels) {
             label.remove();
         }
+        for (int seat = 0; seat < PokerLayout.SEATS; seat++) {
+            playerChips[seat].remove();
+            betChips[seat].remove();
+        }
+        pot.remove();
     }
 
     /**
