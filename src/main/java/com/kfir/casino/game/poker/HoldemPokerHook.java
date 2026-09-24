@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The built-in Texas Holdem, one {@link PokerTable} per poker station.
@@ -23,6 +24,11 @@ public final class HoldemPokerHook implements PokerHook {
 
     private final CasinoPlugin plugin;
     private final Map<String, PokerTable> tables = new HashMap<>();
+    /**
+     * Players whose next chat message is a custom bet, and which turn it is for. Read from
+     * the chat thread, hence the concurrent map.
+     */
+    private final Map<UUID, Integer> awaitingAmount = new ConcurrentHashMap<>();
     private BukkitTask ticker;
 
     public HoldemPokerHook(CasinoPlugin plugin) {
@@ -49,7 +55,7 @@ public final class HoldemPokerHook implements PokerHook {
                     + "</white> chips returned.</gray>");
         }
 
-        PokerTable table = tables.computeIfAbsent(station.id(), key -> new PokerTable(plugin, station));
+        PokerTable table = tables.computeIfAbsent(station.id(), key -> new PokerTable(plugin, this, station));
         startTicker();
         table.open(player);
     }
@@ -78,8 +84,27 @@ public final class HoldemPokerHook implements PokerHook {
         return null;
     }
 
+    /** The player's next chat message will be their bet for this turn. */
+    void awaitAmount(UUID playerId, int turn) {
+        awaitingAmount.put(playerId, turn);
+    }
+
+    public boolean isAwaitingAmount(UUID playerId) {
+        return awaitingAmount.containsKey(playerId);
+    }
+
+    /** A custom bet typed in chat, back on the main thread. */
+    public void typedAmount(Player player, String text) {
+        Integer turn = awaitingAmount.remove(player.getUniqueId());
+        PokerTable table = tableOf(player.getUniqueId());
+        if (turn != null && table != null) {
+            table.typedAmount(player, turn, text);
+        }
+    }
+
     @Override
     public long leave(UUID playerId) {
+        awaitingAmount.remove(playerId);
         long refunded = 0;
         for (PokerTable table : new ArrayList<>(tables.values())) {
             refunded += table.leave(playerId);
@@ -101,6 +126,7 @@ public final class HoldemPokerHook implements PokerHook {
     public void shutdown() {
         Tasks.cancel(ticker);
         ticker = null;
+        awaitingAmount.clear();
         long refunded = 0;
         for (PokerTable table : tables.values()) {
             refunded += table.shutdown();

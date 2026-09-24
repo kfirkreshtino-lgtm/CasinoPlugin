@@ -83,6 +83,7 @@ public final class PokerTable {
     }
 
     private final CasinoPlugin plugin;
+    private final HoldemPokerHook hook;
     private final Station station;
     private final PokerLayout layout;
     private final PokerTableView view;
@@ -101,8 +102,9 @@ public final class PokerTable {
     private boolean closed;
     private LivingEntity dealer;
 
-    PokerTable(CasinoPlugin plugin, Station station) {
+    PokerTable(CasinoPlugin plugin, HoldemPokerHook hook, Station station) {
         this.plugin = plugin;
+        this.hook = hook;
         this.station = station;
         this.layout = PokerLayout.forStation(station.location());
         this.view = new PokerTableView(plugin, layout);
@@ -472,6 +474,44 @@ public final class PokerTable {
     private boolean isBot(HandPlayer p) {
         TableSeat seat = seats[p.seat()];
         return seat != null && seat.bot && seat.id.equals(p.id());
+    }
+
+    /** The player picked "Custom amount": close the menu and read their bet from chat. */
+    void askForAmount(Player player, int forTurn) {
+        HandPlayer p = hand != null ? hand.toAct() : null;
+        if (forTurn != turn || p == null || !p.id().equals(player.getUniqueId())) {
+            plugin.message(player, "<gray>That decision has already passed.</gray>");
+            return;
+        }
+        long min = hand.minRaiseTo(p);
+        long max = hand.maxRaiseTo(p);
+        String verb = hand.currentBet() == 0 ? "bet" : "raise to";
+        hook.awaitAmount(player.getUniqueId(), forTurn);
+        plugin.message(player, "<gold>Type how many chips to " + verb + " in chat.</gold> <gray>From <white>"
+                + Text.chips(min) + "</white> to <white>" + Text.chips(max) + "</white> (all in). "
+                + "Type <white>cancel</white> to go back. Nobody else sees what you type.</gray>");
+    }
+
+    /** What the player typed after picking "Custom amount". */
+    void typedAmount(Player player, int forTurn, String text) {
+        String typed = text.trim().replace(",", "");
+        if (forTurn != turn || state != State.IN_HAND) {
+            plugin.message(player, "<gray>That decision has already passed.</gray>");
+            return;
+        }
+        if (typed.equalsIgnoreCase("cancel")) {
+            new PokerMenu(plugin, player, this).open();
+            return;
+        }
+        long amount;
+        try {
+            amount = Long.parseLong(typed);
+        } catch (NumberFormatException ex) {
+            plugin.message(player, "<red><white>" + typed + "</white> is not a number of chips.</red>");
+            new PokerMenu(plugin, player, this).open();
+            return;
+        }
+        act(player, forTurn, Move.RAISE, amount);
     }
 
     /** A player's choice from the action menu. */

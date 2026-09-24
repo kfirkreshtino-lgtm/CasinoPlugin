@@ -31,6 +31,7 @@ final class PokerMenu extends Menu {
     private static final int FOLD_SLOT = 27;
     private static final int CALL_SLOT = 29;
     private static final int[] RAISE_SLOTS = {31, 32, 33};
+    private static final int CUSTOM_SLOT = 34;
     private static final int ALL_IN_SLOT = 35;
     private static final int WAIT_SLOT = 31;
     private static final int LEAVE_SLOT = 40;
@@ -173,6 +174,13 @@ final class PokerMenu extends Menu {
                     "<gray>" + names[i] + ".</gray>"),
                     event -> choose(turn, PokerTable.Move.RAISE, size));
         }
+        set(CUSTOM_SLOT, Items.of(Material.OAK_SIGN, "<gold><bold>Custom amount</bold></gold>",
+                "<gray>Type exactly how much to " + verb.toLowerCase() + " in chat.</gray>",
+                "<gray>From <white>" + Text.chips(min) + "</white> to <white>" + Text.chips(max) + "</white>.</gray>"),
+                event -> {
+                    player.closeInventory();
+                    table.askForAmount(player, turn);
+                });
         set(ALL_IN_SLOT, Items.of(Material.DIAMOND, "<aqua><bold>All in " + Text.chips(max) + "</bold></aqua>",
                 "<gray>Bet everything you have.</gray>"),
                 event -> choose(turn, PokerTable.Move.RAISE, max));
