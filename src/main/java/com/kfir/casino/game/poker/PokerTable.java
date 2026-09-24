@@ -5,11 +5,11 @@ import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.game.card.Card;
 import com.kfir.casino.game.card.Deck;
 import com.kfir.casino.station.Station;
+import com.kfir.casino.table.Dealers;
 import com.kfir.casino.table.Seat;
 import com.kfir.casino.util.Tasks;
 import com.kfir.casino.util.Text;
 import org.bukkit.Sound;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -61,8 +61,6 @@ public final class PokerTable {
     private static final double LEAVE_DISTANCE_SQUARED = 10 * 10;
     /** An empty table is packed away after this long, which leaves time to pick a buy-in. */
     private static final int EMPTY_SECONDS_BEFORE_CLOSING = 60;
-    /** Scoreboard tag the building gives the dealer standing at each poker table. */
-    public static final String DEALER_TAG = "casino_dealer";
 
     /** How long a bot thinks before it acts. */
     private static final int BOT_THINK_TICKS = 20;
@@ -653,18 +651,7 @@ public final class PokerTable {
 
     /** The dealer at this table reaches out, as if dealing. Tables without one skip this. */
     private void dealerGesture() {
-        if (dealer == null || dealer.isDead() || !dealer.isValid()) {
-            dealer = null;
-            for (Entity entity : layout.centre().getNearbyEntities(6, 3, 6)) {
-                if (entity instanceof LivingEntity living && entity.getScoreboardTags().contains(DEALER_TAG)) {
-                    dealer = living;
-                    break;
-                }
-            }
-        }
-        if (dealer != null) {
-            dealer.swingMainHand();
-        }
+        dealer = Dealers.gesture(dealer, layout.centre(), 6);
     }
 
     private String centreText() {

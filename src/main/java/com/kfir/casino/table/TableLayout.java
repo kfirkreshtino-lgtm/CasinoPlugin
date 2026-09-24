@@ -109,9 +109,9 @@ public final class TableLayout {
         return at(-PLAYER_ROW + 0.26, 0, CARD_LIFT);
     }
 
-    /** Where a seated player is placed. */
+    /** Where a seated player is placed: on the chair just outside the curved rail. */
     public Location seat() {
-        return at(-PLAYER_ROW - 0.75, 0, -0.75);
+        return at(-PLAYER_ROW - 1.05, 0, -0.75);
     }
 
     public float yaw() {

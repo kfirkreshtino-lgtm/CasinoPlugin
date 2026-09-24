@@ -89,8 +89,9 @@ writes a snapshot copied on the main thread.
 
 ## Games
 
-**Blackjack** is played at a physical table, one player per table against an automated
-dealer, with four tables in the building. Right-clicking the seat marker sits you down and
+**Blackjack** is played at a half-moon table, one player per table against a dealer in a
+suit who stands behind the straight edge with a chip tray and a card shoe, with four tables
+in the building. Right-clicking the seat marker sits you down and
 opens the stake menu. Cards are dealt one at a time onto the felt, the dealer hole card
 stays face down until they play, and the action menu appears only when it is your turn.
 
@@ -101,7 +102,9 @@ behaviour. Splitting and insurance are not implemented.
 Presentation is separated from the rules by the `BlackjackView` interface, so the table can
 be restyled, or a second style added, without touching a single rule.
 
-**Roulette** is one shared round per table, which is how a real spin works and is what lets
+**Roulette** is played at a long rounded table with a wheel at one end, the betting layout
+of zero to thirty-six along the rest, and a croupier who spins the wheel. It is one shared
+round per table, which is how a real spin works and is what lets
 several players bet into the same result. The betting window opens on the first bet and
 closes after a configurable number of seconds. Supported bets: straight up, red, black, odd,
 even, low, high, three dozens and three columns. A player can place as many bets as they can

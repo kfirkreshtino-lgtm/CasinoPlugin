@@ -2,6 +2,7 @@ package com.kfir.casino.station;
 
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.game.poker.PokerLayout;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -38,11 +39,39 @@ public final class StationListener implements Listener {
         if (station == null) {
             station = pokerTableAt(block);
         }
+        if (station == null && block.getType() == Material.BARRIER) {
+            station = builtTableAt(block);
+        }
         if (station == null) {
             return;
         }
         event.setCancelled(true);
         plugin.openStation(event.getPlayer(), station);
+    }
+
+    /**
+     * The built blackjack and roulette tables are invisible barrier blocks under display
+     * entities, so a click on any of those barriers belongs to the nearest table.
+     */
+    private Station builtTableAt(Block block) {
+        Station nearest = null;
+        double best = 3.0 * 3.0;
+        for (Station station : plugin.stations().all()) {
+            if (station.type() != StationType.BLACKJACK && station.type() != StationType.ROULETTE) {
+                continue;
+            }
+            if (!block.getWorld().equals(station.world()) || station.location().getBlockY() != block.getY()) {
+                continue;
+            }
+            double dx = station.location().getBlockX() - block.getX();
+            double dz = station.location().getBlockZ() - block.getZ();
+            double distance = dx * dx + dz * dz;
+            if (distance <= best) {
+                best = distance;
+                nearest = station;
+            }
+        }
+        return nearest;
     }
 
     /** A poker table is big, so any of its felt, rail or chairs counts as clicking it. */

@@ -3,7 +3,8 @@ package com.kfir.casino.structure;
 import com.kfir.casino.station.Station;
 import com.kfir.casino.station.StationType;
 import com.kfir.casino.util.Text;
-import com.kfir.casino.game.poker.PokerTable;
+import com.kfir.casino.table.Dealers;
+import com.kfir.casino.table.TableLayout;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -36,9 +37,19 @@ import java.util.UUID;
  * three top with a coloured centre block. That centre block is the station a player
  * right-clicks, and a floating label names it.
  *
- * <p>Poker tables are built as real card tables instead: a smooth oval of felt inside a
- * raised wooden rail on two pedestals, six chairs, a dealer, a card shoe, a carpet and
- * lanterns hanging over it.
+ * <p>The game tables are built to look like real ones. Blocks can only make boxes, so the
+ * visible tables are display entities: thin felt inside a raised wooden rail, cut into
+ * smooth curves, standing on pedestals over a carpet, each with a dealer in a suit. Under
+ * the displays the tables are invisible barrier blocks, which keep them solid and let a
+ * click anywhere on them reach the game.
+ *
+ * <ul>
+ *   <li>Blackjack: a half-moon table, the dealer behind the straight edge with a chip tray
+ *       and a card shoe, one chair on the curved side.</li>
+ *   <li>Poker: an oval for six, with lanterns hanging over it.</li>
+ *   <li>Roulette: a long rounded table with a wheel at one end and the betting layout
+ *       along the rest, and a croupier beside the wheel.</li>
+ * </ul>
  */
 public final class ProceduralBuilder implements StructureBuilder {
 
@@ -50,7 +61,7 @@ public final class ProceduralBuilder implements StructureBuilder {
      * Seat markers, relative to the origin corner. These are the blocks a player clicks,
      * and they sit at the player edge of each table with the felt laid out in front.
      */
-    private static final int[][] BLACKJACK_SEATS = {{3, 1, 6}, {7, 1, 6}, {11, 1, 6}, {15, 1, 6}};
+    private static final int[][] BLACKJACK_SEATS = {{3, 1, 6}, {8, 1, 6}, {13, 1, 6}, {18, 1, 6}};
     /** Middle of each poker table's felt, which is also its station block. */
     private static final int[][] POKER_TABLES = {{5, 1, 13}, {14, 1, 13}};
 
@@ -59,9 +70,24 @@ public final class ProceduralBuilder implements StructureBuilder {
     private static final double FELT_B = 1.6;
     private static final double RAIL_A = 3.65;
     private static final double RAIL_B = 2.15;
-    /** Width of each display slice the oval is built from. Smaller is smoother. */
+    /** Width of each display slice the curves are built from. Smaller is smoother. */
     private static final double SLICE = 0.25;
-    private static final int[] ROULETTE_SPOT = {20, 1, 6};
+
+    /** Blackjack half-moon: radius of the felt and of the rail around it. */
+    private static final double BLACKJACK_FELT = 2.0;
+    private static final double BLACKJACK_RAIL = 2.3;
+
+    /** Roulette: half the length and half the width of its rounded rail. */
+    private static final double ROULETTE_LENGTH = 2.3;
+    private static final double ROULETTE_WIDTH = 1.5;
+    /** Width of the rail inside the roulette table's edge. */
+    private static final double ROULETTE_RAIL = 0.3;
+
+    private static final Material[] CHIP_COLORS = {
+            Material.WHITE_CONCRETE, Material.RED_CONCRETE, Material.GREEN_CONCRETE,
+            Material.BLACK_CONCRETE, Material.PURPLE_CONCRETE, Material.ORANGE_CONCRETE};
+    /** Middle of the roulette table, which is also its station block. */
+    private static final int[] ROULETTE_SPOT = {21, 1, 10};
     private static final int[] CASHIER_SPOT = {20, 1, 15};
 
     /** Yaw the seated player looks along, which points across the table at the dealer. */
@@ -97,14 +123,13 @@ public final class ProceduralBuilder implements StructureBuilder {
 
         int index = 1;
         for (int[] spot : BLACKJACK_SEATS) {
-            stations.add(seatedTable(world, ox, oy, oz, spot, FACING_NORTH, StationType.BLACKJACK,
-                    Material.GREEN_CONCRETE, idPrefix + "blackjack-" + index++));
+            stations.add(blackjackTable(world, ox, oy, oz, spot, idPrefix + "blackjack-" + index++, markers));
         }
         index = 1;
         for (int[] spot : POKER_TABLES) {
             stations.add(pokerTable(world, ox, oy, oz, spot, idPrefix + "poker-" + index++, markers));
         }
-        stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1"));
+        stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1", markers));
         stations.add(table(world, ox, oy, oz, CASHIER_SPOT, StationType.CASHIER, idPrefix + "cashier-1"));
 
         if (spawnLabels) {
@@ -167,38 +192,80 @@ public final class ProceduralBuilder implements StructureBuilder {
     }
 
     /**
-     * A table a player sits at, with felt laid out in front of the seat.
+     * A one-player blackjack table: a half moon with the dealer behind the straight edge.
      *
-     * <p>The seat marker is at the player edge and the felt runs three blocks away from it
-     * towards the dealer, so there is room for the cards, the bet and the dealer hand. The
-     * yaw is stored on the station so the card layout knows which way the table faces.
+     * <p>The station block is where the player sits, facing north across the table, and
+     * {@link TableLayout} works out the cards from it. The felt is a half circle whose flat
+     * side is the dealer's edge, one and a half blocks north of the station, curving round
+     * towards the player. The chair is just south of the station.
      */
-    private Station seatedTable(World world, int ox, int oy, int oz, int[] seatSpot, float yaw,
-                                StationType type, Material felt, String id) {
-        double radians = Math.toRadians(yaw);
-        int forwardX = (int) Math.round(-Math.sin(radians));
-        int forwardZ = (int) Math.round(Math.cos(radians));
-        int sideX = (int) Math.round(Math.cos(radians));
-        int sideZ = (int) Math.round(Math.sin(radians));
-
+    private Station blackjackTable(World world, int ox, int oy, int oz, int[] seatSpot, String id,
+                                   List<UUID> decorations) {
         int bx = ox + seatSpot[0];
         int by = oy + seatSpot[1];
         int bz = oz + seatSpot[2];
+        double mx = bx + 0.5;
+        // The dealer's straight edge of the felt. Everything curves south from here.
+        double edge = bz - 1.5;
 
-        for (int forward = 0; forward <= 2; forward++) {
-            for (int side = -1; side <= 1; side++) {
-                int x = bx + forwardX * forward + sideX * side;
-                int z = bz + forwardZ * forward + sideZ * side;
-                // The far row is the dealer side, in darker stone so the table reads as a table.
-                set(world, x, by, z, forward == 2 ? Material.POLISHED_BLACKSTONE : felt);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 0; dz++) {
+                double depth = bz + dz + 0.5 - edge;
+                if (inside(dx, depth, BLACKJACK_RAIL + 0.3, BLACKJACK_RAIL + 0.3)) {
+                    set(world, bx + dx, by, bz + dz, Material.BARRIER);
+                }
             }
         }
-        set(world, bx, by, bz, type.marker());
+
+        BlockData felt = Material.GREEN_WOOL.createBlockData();
+        BlockData rail = Material.STRIPPED_DARK_OAK_WOOD.createBlockData();
+        int slices = (int) Math.ceil(2 * BLACKJACK_RAIL / SLICE);
+        for (int i = 0; i < slices; i++) {
+            double x0 = -BLACKJACK_RAIL + i * SLICE;
+            double mid = x0 + SLICE / 2;
+            double outer = halfDepth(mid, BLACKJACK_RAIL, BLACKJACK_RAIL);
+            double inner = halfDepth(mid, BLACKJACK_FELT, BLACKJACK_FELT);
+            if (outer < 0.05) {
+                continue;
+            }
+            // A straight strip of rail along the dealer's edge.
+            decorations.add(box(world, rail, mx + x0, by + 0.82, edge - 0.25, SLICE, 0.25, 0.25));
+            if (inner > 0) {
+                decorations.add(box(world, felt, mx + x0, by + 0.88, edge, SLICE, 0.12, inner));
+                decorations.add(box(world, rail, mx + x0, by + 0.82, edge + inner, SLICE, 0.25, outer - inner));
+            } else {
+                decorations.add(box(world, rail, mx + x0, by + 0.82, edge, SLICE, 0.25, outer));
+            }
+        }
+
+        // One pedestal under the middle of the felt.
+        decorations.add(box(world, Material.STRIPPED_DARK_OAK_LOG.createBlockData(),
+                mx - 0.15, by, edge + 0.75, 0.3, 0.82, 0.3));
+        decorations.add(box(world, Material.DARK_OAK_PLANKS.createBlockData(),
+                mx - 0.5, by, edge + 0.5, 1.0, 0.08, 0.8));
+
+        // The dealer's chip tray along the straight edge: a wooden tray with a row per colour.
+        decorations.add(box(world, Material.DARK_OAK_PLANKS.createBlockData(),
+                mx - 0.6, by + 1.0, edge + 0.03, 1.2, 0.04, 0.2));
+        for (int k = 0; k < CHIP_COLORS.length; k++) {
+            decorations.add(box(world, CHIP_COLORS[k].createBlockData(),
+                    mx - 0.57 + k * 0.19, by + 1.04, edge + 0.05, 0.17, 0.05, 0.16));
+        }
+
+        // The card shoe at the dealer's side.
+        decorations.add(box(world, Material.BLACK_CONCRETE.createBlockData(),
+                mx + 1.2, by + 1.0, edge + 0.1, 0.22, 0.14, 0.3));
+        decorations.add(box(world, Material.RED_CONCRETE.createBlockData(),
+                mx + 1.22, by + 1.14, edge + 0.12, 0.18, 0.01, 0.26));
+
+        setData(world, bx, by, bz + 1, chair(BlockFace.SOUTH));
+        carpet(world, by, mx, edge + 1.0, 2.5, 2.7);
+        decorations.add(dealer(world, mx, by + 0.0625, edge - 0.55, 0f, "Blackjack"));
 
         Location seat = new Location(world, bx, by, bz);
-        seat.setYaw(yaw);
+        seat.setYaw(FACING_NORTH);
         seat.setPitch(0f);
-        return new Station(id, type, seat);
+        return new Station(id, StationType.BLACKJACK, seat);
     }
 
     /**
@@ -289,7 +356,7 @@ public final class ProceduralBuilder implements StructureBuilder {
             }
         }
 
-        decorations.add(dealer(world, mx + 3.95, cy + 0.0625, mz));
+        decorations.add(dealer(world, mx + 3.95, cy + 0.0625, mz, 90f, "Texas Hold'em"));
 
         Lantern lantern = (Lantern) Material.LANTERN.createBlockData();
         lantern.setHanging(true);
@@ -329,9 +396,54 @@ public final class ProceduralBuilder implements StructureBuilder {
         return display.getUniqueId();
     }
 
-    /** The dealer: a figure in a black suit at the end of the table, facing the players. */
-    private static UUID dealer(World world, double x, double y, double z) {
-        Location where = new Location(world, x, y, z, 90f, 0f);
+    /**
+     * A box turned about its own middle, for the round parts of the roulette wheel.
+     *
+     * @param across size across the turn, along the local x axis
+     * @param along  size along the direction the angle points, the local z axis
+     * @param angle  radians about the vertical; zero points south
+     */
+    private static UUID turnedBox(World world, BlockData block, double x, double y, double z,
+                                  double across, double height, double along, double angle) {
+        Location middle = new Location(world, x, y, z);
+        BlockDisplay display = world.spawn(middle, BlockDisplay.class, entity -> {
+            entity.setBlock(block);
+            entity.setPersistent(true);
+            Quaternionf rotation = new Quaternionf().rotateY((float) angle);
+            Vector3f corner = rotation.transform(new Vector3f((float) across / 2f, 0f, (float) along / 2f)).negate();
+            entity.setTransformation(new Transformation(
+                    corner,
+                    rotation,
+                    new Vector3f((float) across, (float) height, (float) along),
+                    new Quaternionf()));
+        });
+        return display.getUniqueId();
+    }
+
+    /** An oval carpet, red with a black border, laid only where the floor is empty. */
+    private static void carpet(World world, int y, double centreX, double centreZ, double halfX, double halfZ) {
+        for (int x = (int) Math.floor(centreX - halfX); x <= (int) Math.ceil(centreX + halfX); x++) {
+            for (int z = (int) Math.floor(centreZ - halfZ); z <= (int) Math.ceil(centreZ + halfZ); z++) {
+                double dx = (x + 0.5 - centreX) / halfX;
+                double dz = (z + 0.5 - centreZ) / halfZ;
+                double ring = dx * dx + dz * dz;
+                Block block = world.getBlockAt(x, y, z);
+                if (ring <= 1.0 && block.getType() == Material.AIR) {
+                    block.setType(ring > 0.72 ? Material.BLACK_CARPET : Material.RED_CARPET, false);
+                }
+            }
+        }
+    }
+
+    /**
+     * A dealer: a figure in a black suit that stands still, cannot be hurt and is found
+     * again by the games through its tag.
+     *
+     * @param yaw  direction the dealer faces, towards the players
+     * @param game shown under the dealer's name
+     */
+    private static UUID dealer(World world, double x, double y, double z, float yaw, String game) {
+        Location where = new Location(world, x, y, z, yaw, 0f);
         Mannequin dealer = world.spawn(where, Mannequin.class, entity -> {
             entity.setAI(false);
             entity.setGravity(false);
@@ -343,8 +455,8 @@ public final class ProceduralBuilder implements StructureBuilder {
             entity.setRemoveWhenFarAway(false);
             entity.customName(Text.mm("<gold>Dealer</gold>"));
             entity.setCustomNameVisible(true);
-            entity.setDescription(Text.mm("<gray>Texas Hold'em</gray>"));
-            entity.addScoreboardTag(PokerTable.DEALER_TAG);
+            entity.setDescription(Text.mm("<gray>" + game + "</gray>"));
+            entity.addScoreboardTag(Dealers.TAG);
 
             EntityEquipment gear = entity.getEquipment();
             gear.setChestplate(suit(Material.LEATHER_CHESTPLATE));
@@ -386,30 +498,165 @@ public final class ProceduralBuilder implements StructureBuilder {
         return new Station(id, type, new Location(world, cx, cy, cz));
     }
 
-    /** The roulette table plus a decorative red and black ring around it. */
-    private Station rouletteTable(World world, int ox, int oy, int oz, String id) {
-        Station station = table(world, ox, oy, oz, ROULETTE_SPOT, StationType.ROULETTE, id);
-        int cx = station.location().getBlockX();
-        int cy = station.location().getBlockY();
-        int cz = station.location().getBlockZ();
+    /**
+     * A roulette table: long and rounded, with the wheel at the north end and the betting
+     * layout along the rest. The station block is the middle of the table.
+     */
+    private Station rouletteTable(World world, int ox, int oy, int oz, String id, List<UUID> decorations) {
+        int rx = ox + ROULETTE_SPOT[0];
+        int ry = oy + ROULETTE_SPOT[1];
+        int rz = oz + ROULETTE_SPOT[2];
+        double mx = rx + 0.5;
+        double mz = rz + 0.5;
 
-        for (int dx = -2; dx <= 2; dx++) {
+        for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -2; dz <= 2; dz++) {
-                if (Math.abs(dx) != 2 && Math.abs(dz) != 2) {
-                    continue;
+                if (Math.abs(dx) <= roundedHalfWidth(dz, ROULETTE_LENGTH + 0.3, ROULETTE_WIDTH + 0.3)) {
+                    set(world, rx + dx, ry, rz + dz, Material.BARRIER);
                 }
-                boolean red = ((dx + dz) & 1) == 0;
-                set(world, cx + dx, cy, cz + dz, red ? Material.RED_CONCRETE : Material.BLACK_CONCRETE);
             }
         }
-        return station;
+
+        // Felt inside a rail, sliced along the length of the table.
+        BlockData felt = Material.GREEN_WOOL.createBlockData();
+        BlockData rail = Material.STRIPPED_DARK_OAK_WOOD.createBlockData();
+        int slices = (int) Math.ceil(2 * ROULETTE_LENGTH / SLICE);
+        for (int i = 0; i < slices; i++) {
+            double z0 = -ROULETTE_LENGTH + i * SLICE;
+            double mid = z0 + SLICE / 2;
+            double outer = roundedHalfWidth(mid, ROULETTE_LENGTH, ROULETTE_WIDTH);
+            double inner = roundedHalfWidth(mid, ROULETTE_LENGTH - ROULETTE_RAIL, ROULETTE_WIDTH - ROULETTE_RAIL);
+            if (outer < 0.05) {
+                continue;
+            }
+            if (inner > 0) {
+                decorations.add(box(world, felt, mx - inner, ry + 0.88, mz + z0, 2 * inner, 0.12, SLICE));
+                decorations.add(box(world, rail, mx + inner, ry + 0.82, mz + z0, outer - inner, 0.25, SLICE));
+                decorations.add(box(world, rail, mx - outer, ry + 0.82, mz + z0, outer - inner, 0.25, SLICE));
+            } else {
+                decorations.add(box(world, rail, mx - outer, ry + 0.82, mz + z0, 2 * outer, 0.25, SLICE));
+            }
+        }
+
+        for (int sign = -1; sign <= 1; sign += 2) {
+            double pz = mz + sign * 1.0;
+            decorations.add(box(world, Material.STRIPPED_DARK_OAK_LOG.createBlockData(),
+                    mx - 0.15, ry, pz - 0.15, 0.3, 0.82, 0.3));
+            decorations.add(box(world, Material.DARK_OAK_PLANKS.createBlockData(),
+                    mx - 0.6, ry, pz - 0.3, 1.2, 0.08, 0.6));
+        }
+
+        double wheelZ = mz - 1.15;
+        wheel(world, mx, ry + 1.0, wheelZ, decorations);
+        bettingLayout(world, mx, ry + 1.0, mz - 0.35, decorations);
+
+        carpet(world, ry, mx, mz, 2.7, 3.6);
+        decorations.add(dealer(world, mx + 1.95, ry + 0.0625, wheelZ, 90f, "Roulette"));
+
+        return new Station(id, StationType.ROULETTE, new Location(world, rx, ry, rz));
     }
+
+    /**
+     * Half the width of a rounded table at a point along its length: straight sides with a
+     * half circle at each end.
+     */
+    private static double roundedHalfWidth(double along, double halfLength, double halfWidth) {
+        double straight = halfLength - halfWidth;
+        double past = Math.abs(along) - straight;
+        if (past <= 0) {
+            return halfWidth;
+        }
+        if (past >= halfWidth) {
+            return 0;
+        }
+        return Math.sqrt(halfWidth * halfWidth - past * past);
+    }
+
+    /**
+     * The roulette wheel lying on the felt: a wooden bowl and rim, 37 pockets in the
+     * European order of colours, zero in green and red and black alternating after it, a
+     * wooden rotor with a gold spindle, and the ball resting in a pocket.
+     */
+    private static void wheel(World world, double x, double y, double z, List<UUID> decorations) {
+        BlockData wood = Material.DARK_OAK_PLANKS.createBlockData();
+        for (int k = 0; k < 3; k++) {
+            decorations.add(turnedBox(world, wood, x, y, z, 1.0, 0.03, 1.0, Math.toRadians(30 * k)));
+        }
+
+        BlockData rim = Material.STRIPPED_DARK_OAK_WOOD.createBlockData();
+        int rimSegments = 28;
+        for (int k = 0; k < rimSegments; k++) {
+            double angle = 2 * Math.PI * k / rimSegments;
+            decorations.add(turnedBox(world, rim, x + 0.56 * Math.sin(angle), y, z + 0.56 * Math.cos(angle),
+                    0.14, 0.12, 0.08, angle));
+        }
+
+        BlockData green = Material.GREEN_CONCRETE.createBlockData();
+        BlockData red = Material.RED_CONCRETE.createBlockData();
+        BlockData black = Material.BLACK_CONCRETE.createBlockData();
+        for (int k = 0; k < 37; k++) {
+            double angle = 2 * Math.PI * k / 37;
+            BlockData colour = k == 0 ? green : k % 2 == 1 ? red : black;
+            decorations.add(turnedBox(world, colour, x + 0.42 * Math.sin(angle), y + 0.03, z + 0.42 * Math.cos(angle),
+                    0.065, 0.035, 0.12, angle));
+        }
+
+        decorations.add(turnedBox(world, wood, x, y + 0.03, z, 0.5, 0.05, 0.5, 0));
+        decorations.add(turnedBox(world, wood, x, y + 0.03, z, 0.5, 0.05, 0.5, Math.PI / 4));
+        decorations.add(turnedBox(world, Material.GOLD_BLOCK.createBlockData(), x, y + 0.08, z, 0.07, 0.14, 0.07, 0));
+
+        double ballAngle = 2 * Math.PI * 7 / 37;
+        decorations.add(turnedBox(world, Material.QUARTZ_BLOCK.createBlockData(),
+                x + 0.42 * Math.sin(ballAngle), y + 0.065, z + 0.42 * Math.cos(ballAngle), 0.05, 0.05, 0.05, 0));
+    }
+
+    /**
+     * The betting layout: zero, then the numbers one to thirty-six in three rows of twelve
+     * in their real colours, white lines between them, and the six even-money boxes along
+     * the side.
+     *
+     * @param start where the numbers begin along the table; zero sits just before it
+     */
+    private static void bettingLayout(World world, double x, double y, double start, List<UUID> decorations) {
+        double column = 0.16;
+        double row = 0.3;
+        BlockData white = Material.WHITE_CONCRETE.createBlockData();
+        BlockData green = Material.GREEN_CONCRETE.createBlockData();
+        BlockData red = Material.RED_CONCRETE.createBlockData();
+        BlockData black = Material.BLACK_CONCRETE.createBlockData();
+
+        // White under everything shows through the gaps as the lines of the layout.
+        decorations.add(box(world, white, x - 0.47, y, start - 0.22, 0.94, 0.008, 12 * column + 0.24));
+        decorations.add(box(world, green, x - 0.45, y + 0.008, start - 0.2, 0.9, 0.01, 0.18));
+        for (int c = 0; c < 12; c++) {
+            for (int r = 0; r < 3; r++) {
+                int number = 3 * c + 3 - r;
+                decorations.add(box(world, RED_NUMBERS.contains(number) ? red : black,
+                        x - 0.45 + r * row + 0.015, y + 0.008, start + c * column + 0.01, row - 0.03, 0.01, column - 0.02));
+            }
+        }
+
+        // 1-18, even, red, black, odd, 19-36.
+        decorations.add(box(world, white, x + 0.5, y, start - 0.02, 0.32, 0.008, 12 * column + 0.04));
+        BlockData[] outside = {green, green, red, black, green, green};
+        for (int k = 0; k < outside.length; k++) {
+            decorations.add(box(world, outside[k], x + 0.515, y + 0.008, start + k * 2 * column + 0.01,
+                    0.29, 0.01, 2 * column - 0.02));
+        }
+    }
+
+    private static final java.util.Set<Integer> RED_NUMBERS = java.util.Set.of(
+            1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36);
 
     /** Floating name tag above a station. */
     private UUID label(Station station) {
-        // Poker puts its cards and pot in the middle of the felt, so its name floats higher.
-        double height = station.type() == StationType.POKER ? 2.5 : 1.4;
-        Location where = station.location().clone().add(0.5, height, 0.5);
+        // Game tables have cards, chips and a wheel on the felt, so their names float higher.
+        Location where = switch (station.type()) {
+            case BLACKJACK -> TableLayout.forStation(station.location()).statusLabel().add(0, 0.9, 0);
+            case POKER -> station.location().clone().add(0.5, 2.5, 0.5);
+            case ROULETTE -> station.location().clone().add(0.5, 2.3, 0.5);
+            default -> station.location().clone().add(0.5, 1.4, 0.5);
+        };
         TextDisplay display = where.getWorld().spawn(where, TextDisplay.class, entity -> {
             entity.text(Text.mm(station.type().color() + "<bold>" + station.label() + "</bold>"));
             entity.setBillboard(Display.Billboard.CENTER);

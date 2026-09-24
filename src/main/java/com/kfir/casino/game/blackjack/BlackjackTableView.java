@@ -3,12 +3,14 @@ package com.kfir.casino.game.blackjack;
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.game.card.Card;
 import com.kfir.casino.table.CardVisual;
+import com.kfir.casino.table.Dealers;
 import com.kfir.casino.table.Hologram;
 import com.kfir.casino.table.TableLayout;
 import com.kfir.casino.util.Tasks;
 import com.kfir.casino.util.Text;
 import org.bukkit.Location;
 import org.bukkit.Sound;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -52,6 +54,7 @@ public final class BlackjackTableView implements BlackjackView {
     private Hologram betLabel;
 
     private BukkitTask pump;
+    private LivingEntity dealerFigure;
 
     /** One queued table change and how long to wait after it before the next. */
     private record Step(Runnable action, int holdTicks) {
@@ -137,6 +140,7 @@ public final class BlackjackTableView implements BlackjackView {
             row.add(CardVisual.place(layout.cardSlot(index, index + 1, dealer), hole ? null : card));
             layoutRow(dealer);
             playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.4f);
+            dealerGesture();
             render();
         }, STEP_TICKS);
     }
@@ -149,6 +153,7 @@ public final class BlackjackTableView implements BlackjackView {
                 if (hole != null && !dealerCards.get(1).isFaceUp()) {
                     dealerCards.get(1).reveal(hole);
                     playSound(Sound.ITEM_BOOK_PAGE_TURN, 1.1f);
+                    dealerGesture();
                 }
             }
             render();
@@ -219,6 +224,11 @@ public final class BlackjackTableView implements BlackjackView {
         }
         next.action().run();
         pump = Tasks.later(plugin, Math.max(1, next.holdTicks()), this::runNext);
+    }
+
+    /** The dealer behind this table reaches out, as if dealing. Tables without one skip this. */
+    private void dealerGesture() {
+        dealerFigure = Dealers.gesture(dealerFigure, layout.statusLabel(), 2.5);
     }
 
     private void playSound(Sound sound, float pitch) {

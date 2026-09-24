@@ -2,10 +2,12 @@ package com.kfir.casino.game.roulette;
 
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.station.Station;
+import com.kfir.casino.table.Dealers;
 import com.kfir.casino.util.Tasks;
 import com.kfir.casino.util.Text;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Sound;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -203,6 +205,11 @@ public final class RouletteRound {
             return;
         }
         phase = Phase.SPINNING;
+        // The croupier at a built table spins the wheel.
+        LivingEntity croupier = Dealers.near(station.location().clone().add(0.5, 1, 0.5), 3.5);
+        if (croupier != null) {
+            croupier.swingMainHand();
+        }
         refreshViewers();
 
         int result = wheel.spin();
