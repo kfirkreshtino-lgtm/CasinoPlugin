@@ -49,6 +49,8 @@ import java.util.UUID;
  *   <li>Poker: an oval for six, with lanterns hanging over it.</li>
  *   <li>Roulette: a long rounded table with a wheel at one end and the betting layout
  *       along the rest, and a croupier beside the wheel.</li>
+ *   <li>Cashier: a counter with a marble top and a glass window, a cashier behind it and
+ *       a shelf of gold bars and diamonds against the wall.</li>
  * </ul>
  */
 public final class ProceduralBuilder implements StructureBuilder {
@@ -88,6 +90,7 @@ public final class ProceduralBuilder implements StructureBuilder {
             Material.BLACK_CONCRETE, Material.PURPLE_CONCRETE, Material.ORANGE_CONCRETE};
     /** Middle of the roulette table, which is also its station block. */
     private static final int[] ROULETTE_SPOT = {21, 1, 10};
+    /** Middle of the cashier's counter, which is also its station block. */
     private static final int[] CASHIER_SPOT = {20, 1, 15};
 
     /** Yaw the seated player looks along, which points across the table at the dealer. */
@@ -130,7 +133,7 @@ public final class ProceduralBuilder implements StructureBuilder {
             stations.add(pokerTable(world, ox, oy, oz, spot, idPrefix + "poker-" + index++, markers));
         }
         stations.add(rouletteTable(world, ox, oy, oz, idPrefix + "roulette-1", markers));
-        stations.add(table(world, ox, oy, oz, CASHIER_SPOT, StationType.CASHIER, idPrefix + "cashier-1"));
+        stations.add(cashier(world, ox, oy, oz, idPrefix + "cashier-1", markers));
 
         if (spawnLabels) {
             for (Station station : stations) {
@@ -443,6 +446,15 @@ public final class ProceduralBuilder implements StructureBuilder {
      * @param game shown under the dealer's name
      */
     private static UUID dealer(World world, double x, double y, double z, float yaw, String game) {
+        return staff(world, x, y, z, yaw, "Dealer", game);
+    }
+
+    /**
+     * A member of staff: a figure in a black suit that stands still and cannot be hurt.
+     * Every one carries the dealer tag, which is what protects them.
+     */
+    private static UUID staff(World world, double x, double y, double z, float yaw, String name, String role,
+                              String... extraTags) {
         Location where = new Location(world, x, y, z, yaw, 0f);
         Mannequin dealer = world.spawn(where, Mannequin.class, entity -> {
             entity.setAI(false);
@@ -453,10 +465,13 @@ public final class ProceduralBuilder implements StructureBuilder {
             entity.setCollidable(false);
             entity.setPersistent(true);
             entity.setRemoveWhenFarAway(false);
-            entity.customName(Text.mm("<gold>Dealer</gold>"));
+            entity.customName(Text.mm("<gold>" + name + "</gold>"));
             entity.setCustomNameVisible(true);
-            entity.setDescription(Text.mm("<gray>" + game + "</gray>"));
+            entity.setDescription(Text.mm("<gray>" + role + "</gray>"));
             entity.addScoreboardTag(Dealers.TAG);
+            for (String tag : extraTags) {
+                entity.addScoreboardTag(tag);
+            }
 
             EntityEquipment gear = entity.getEquipment();
             gear.setChestplate(suit(Material.LEATHER_CHESTPLATE));
@@ -483,19 +498,85 @@ public final class ProceduralBuilder implements StructureBuilder {
         return stairs;
     }
 
-    /** A three by three table top with the clickable station block in the middle. */
-    private Station table(World world, int ox, int oy, int oz, int[] spot, StationType type, String id) {
-        int cx = ox + spot[0];
-        int cy = oy + spot[1];
-        int cz = oz + spot[2];
+    /**
+     * The cashier's counter in the south-east corner, facing west into the hall.
+     *
+     * <p>A wooden counter three blocks long with a white marble top and gold trim, a glass
+     * window with an opening in the middle and a money tray in front of it. A cashier in a
+     * suit stands behind it, and against the wall is a shelf of gold bars and diamond
+     * blocks. Like the game tables, the counter and shelf are barrier blocks under display
+     * entities; right-clicking them, or the cashier, opens the cashier menu.
+     */
+    private Station cashier(World world, int ox, int oy, int oz, String id, List<UUID> decorations) {
+        int cx = ox + CASHIER_SPOT[0];
+        int cy = oy + CASHIER_SPOT[1];
+        int cz = oz + CASHIER_SPOT[2];
+        double front = cx;          // west face of the counter
+        double north = cz - 1.0;    // the counter runs from here three blocks south
+        double length = 3.0;
 
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                set(world, cx + dx, cy, cz + dz, Material.POLISHED_BLACKSTONE);
+        for (int dz = -1; dz <= 1; dz++) {
+            set(world, cx, cy, cz + dz, Material.BARRIER);
+            set(world, cx + 3, cy, cz + dz, Material.BARRIER);
+        }
+
+        BlockData wood = Material.DARK_OAK_PLANKS.createBlockData();
+        BlockData trim = Material.GOLD_BLOCK.createBlockData();
+        BlockData marble = Material.SMOOTH_QUARTZ.createBlockData();
+        BlockData glass = Material.GLASS.createBlockData();
+
+        // Counter body, a gold kick plate along the floor and a marble top that overhangs it.
+        decorations.add(box(world, wood, front + 0.1, cy, north + 0.05, 0.8, 1.0, length - 0.1));
+        decorations.add(box(world, trim, front + 0.08, cy, north + 0.05, 0.03, 0.08, length - 0.1));
+        decorations.add(box(world, marble, front - 0.05, cy + 1.0, north, 1.0, 0.08, length));
+        decorations.add(box(world, trim, front - 0.07, cy + 1.0, north, 0.03, 0.08, length));
+
+        // Glass window along the counter with an opening in the middle to pass chips through.
+        decorations.add(box(world, trim, front + 0.45, cy + 1.08, north + 0.05, 0.08, 0.04, length - 0.1));
+        decorations.add(box(world, glass, front + 0.47, cy + 1.12, north + 0.05, 0.04, 0.9, 1.1));
+        decorations.add(box(world, glass, front + 0.47, cy + 1.12, north + 1.85, 0.04, 0.9, 1.1));
+        decorations.add(box(world, glass, front + 0.47, cy + 1.72, north + 1.15, 0.04, 0.3, 0.7));
+        decorations.add(box(world, trim, front + 0.45, cy + 2.02, north + 0.05, 0.08, 0.04, length - 0.1));
+
+        // Money tray under the opening, a pile of diamonds and a few chip stacks on the marble.
+        decorations.add(box(world, Material.BLACK_CONCRETE.createBlockData(),
+                front + 0.02, cy + 1.08, north + 1.2, 0.38, 0.02, 0.6));
+        BlockData diamond = Material.DIAMOND_BLOCK.createBlockData();
+        decorations.add(box(world, diamond, front + 0.05, cy + 1.08, north + 0.3, 0.12, 0.12, 0.12));
+        decorations.add(box(world, diamond, front + 0.19, cy + 1.08, north + 0.3, 0.12, 0.12, 0.12));
+        decorations.add(box(world, diamond, front + 0.12, cy + 1.2, north + 0.3, 0.12, 0.12, 0.12));
+        for (int k = 0; k < 4; k++) {
+            BlockData chip = CHIP_COLORS[k + 1].createBlockData();
+            for (int h = 0; h <= k; h++) {
+                decorations.add(box(world, chip, front + 0.08 + k * 0.08, cy + 1.08 + h * 0.022,
+                        north + 2.45, 0.07, 0.022, 0.07));
             }
         }
-        set(world, cx, cy, cz, type.marker());
-        return new Station(id, type, new Location(world, cx, cy, cz));
+
+        // The shelf against the east wall: gold bars stacked like a pyramid and diamond blocks.
+        double shelf = cx + 3;
+        decorations.add(box(world, wood, shelf + 0.2, cy, north + 0.05, 0.8, 1.0, length - 0.1));
+        decorations.add(box(world, marble, shelf + 0.15, cy + 1.0, north, 0.85, 0.06, length));
+        for (int row = 0; row < 3; row++) {
+            for (int bar = 0; bar < 3 - row; bar++) {
+                decorations.add(box(world, trim, shelf + 0.45, cy + 1.06 + row * 0.1,
+                        north + 0.25 + row * 0.14 + bar * 0.28, 0.24, 0.1, 0.24));
+            }
+        }
+        for (int k = 0; k < 3; k++) {
+            decorations.add(box(world, diamond, shelf + 0.45, cy + 1.06, north + 1.9 + k * 0.32, 0.25, 0.25, 0.25));
+        }
+        decorations.add(box(world, diamond, shelf + 0.45, cy + 1.31, north + 2.06, 0.25, 0.25, 0.25));
+
+        decorations.add(staff(world, cx + 1.9, cy, cz + 0.5, 90f, "Cashier", "Chips for diamonds",
+                Dealers.CASHIER_TAG));
+
+        Lantern lantern = (Lantern) Material.LANTERN.createBlockData();
+        lantern.setHanging(true);
+        setData(world, cx + 1, oy + HEIGHT - 2, cz, lantern);
+        carpet(world, cy, cx - 0.9, cz + 0.5, 1.6, 2.6);
+
+        return new Station(id, StationType.CASHIER, new Location(world, cx, cy, cz));
     }
 
     /**
@@ -655,6 +736,7 @@ public final class ProceduralBuilder implements StructureBuilder {
             case BLACKJACK -> TableLayout.forStation(station.location()).statusLabel().add(0, 0.9, 0);
             case POKER -> station.location().clone().add(0.5, 2.5, 0.5);
             case ROULETTE -> station.location().clone().add(0.5, 2.3, 0.5);
+            case CASHIER -> station.location().clone().add(1.5, 2.6, 0.5);
             default -> station.location().clone().add(0.5, 1.4, 0.5);
         };
         TextDisplay display = where.getWorld().spawn(where, TextDisplay.class, entity -> {

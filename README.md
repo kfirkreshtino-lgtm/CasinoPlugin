@@ -53,6 +53,10 @@ put every table, so it registers the stations itself. `StructureBuilder` is an i
 footprint is recorded as block data in `structure.yml`. Removing clears the footprint and
 replays that snapshot, so building on a hillside is not destructive.
 
+**The cashier is a counter, not a menu block.** Chips are bought with diamonds from a
+cashier in a suit behind a marble counter with a glass window. Right-click the counter,
+the shelf behind it or the cashier to open the cashier menu.
+
 **Right-click on a table block, not pressure plates.** Plates fire when players walk past.
 A right-click on a registered block is unambiguous and needs no extra entity. A floating
 text display above each table names it.

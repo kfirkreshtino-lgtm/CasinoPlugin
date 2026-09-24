@@ -14,6 +14,8 @@ public final class Dealers {
 
     /** Scoreboard tag on every dealer the building spawns. */
     public static final String TAG = "casino_dealer";
+    /** Extra tag on the cashier, whose right-click opens the cashier. */
+    public static final String CASHIER_TAG = "casino_cashier";
 
     private Dealers() {
     }

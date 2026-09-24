@@ -50,14 +50,15 @@ public final class StationListener implements Listener {
     }
 
     /**
-     * The built blackjack and roulette tables are invisible barrier blocks under display
-     * entities, so a click on any of those barriers belongs to the nearest table.
+     * The built blackjack and roulette tables and the cashier's counter are invisible
+     * barrier blocks under display entities, so a click on any of those barriers belongs to
+     * the nearest one.
      */
     private Station builtTableAt(Block block) {
         Station nearest = null;
         double best = 3.0 * 3.0;
         for (Station station : plugin.stations().all()) {
-            if (station.type() != StationType.BLACKJACK && station.type() != StationType.ROULETTE) {
+            if (station.type() == StationType.POKER) {
                 continue;
             }
             if (!block.getWorld().equals(station.world()) || station.location().getBlockY() != block.getY()) {

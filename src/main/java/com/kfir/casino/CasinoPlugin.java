@@ -70,7 +70,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
         getServer().getPluginManager().registerEvents(new MenuListener(), this);
         getServer().getPluginManager().registerEvents(new StationListener(this), this);
         getServer().getPluginManager().registerEvents(games, this);
-        getServer().getPluginManager().registerEvents(new DealerListener(), this);
+        getServer().getPluginManager().registerEvents(new DealerListener(this), this);
         getServer().getPluginManager().registerEvents(new PokerChatListener(this), this);
 
         PluginCommand command = getCommand("casino");
