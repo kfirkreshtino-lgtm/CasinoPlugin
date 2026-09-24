@@ -12,7 +12,7 @@ import java.util.Locale;
 public final class CasinoTabCompleter implements TabCompleter {
 
     private static final List<String> PLAYER_ROOTS = List.of("chips", "balance", "leave");
-    private static final List<String> ADMIN_ROOTS = List.of("spawn", "remove", "station", "reload");
+    private static final List<String> ADMIN_ROOTS = List.of("spawn", "remove", "station", "reload", "pokerbot");
     private static final List<String> STATION_ACTIONS = List.of("add", "remove", "list");
     private static final List<String> STATION_TYPES = List.of("cashier", "blackjack", "roulette", "poker");
     private static final List<String> CHIP_ACTIONS = List.of("buy", "sell");
@@ -35,6 +35,8 @@ public final class CasinoTabCompleter implements TabCompleter {
                 options.addAll(STATION_ACTIONS);
             } else if (args[0].equalsIgnoreCase("chips") && sender.hasPermission("casino.use")) {
                 options.addAll(CHIP_ACTIONS);
+            } else if (args[0].equalsIgnoreCase("pokerbot") && sender.hasPermission("casino.admin")) {
+                options.add("remove");
             }
         } else if (args.length == 3) {
             if (args[0].equalsIgnoreCase("station") && args[1].equalsIgnoreCase("add")

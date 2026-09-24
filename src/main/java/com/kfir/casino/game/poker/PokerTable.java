@@ -28,6 +28,10 @@ import java.util.UUID;
  * <p>Chips a player sits down with leave their casino balance and are only on the table.
  * Standing up, walking away, disconnecting or the server stopping all return what is left
  * in front of them. Leaving mid-hand folds the hand; chips already in the pot stay there.
+ *
+ * <p>For testing alone, an admin can seat a bot. A bot's chips are play money: they never
+ * come from or go back to anyone's balance. It always checks or calls, and it leaves when
+ * the last real player does.
  */
 public final class PokerTable {
 
@@ -60,16 +64,21 @@ public final class PokerTable {
     /** Scoreboard tag the building gives the dealer standing at each poker table. */
     public static final String DEALER_TAG = "casino_dealer";
 
+    /** How long a bot thinks before it acts. */
+    private static final int BOT_THINK_TICKS = 20;
+
     private static final class TableSeat {
         final UUID id;
         final String name;
+        final boolean bot;
         long stack;
         Seat chair;
 
-        TableSeat(UUID id, String name, long stack) {
+        TableSeat(UUID id, String name, long stack, boolean bot) {
             this.id = id;
             this.name = name;
             this.stack = stack;
+            this.bot = bot;
         }
     }
 
@@ -150,7 +159,7 @@ public final class PokerTable {
             plugin.message(player, "<red>You do not have " + Text.chips(amount) + " chips.</red>");
             return;
         }
-        TableSeat seat = new TableSeat(id, player.getName(), amount);
+        TableSeat seat = new TableSeat(id, player.getName(), amount, false);
         seat.chair = Seat.sit(player, layout.chair(index));
         seats[index] = seat;
 
@@ -183,7 +192,7 @@ public final class PokerTable {
             view.muck(index);
         }
 
-        if (refund > 0) {
+        if (refund > 0 && !seat.bot) {
             plugin.chipBank().give(id, refund);
         }
         if (seat.chair != null) {
@@ -196,9 +205,54 @@ public final class PokerTable {
         if (handRunning) {
             onHandChanged();
         }
+        if (!seat.bot && !hasPeople()) {
+            removeBots();
+        }
         updateWaiting();
         render();
-        return refund;
+        return seat.bot ? 0 : refund;
+    }
+
+    /** Seats a test bot in the first free chair. Returns an error, or null. */
+    String addBot() {
+        int index = freeSeat();
+        if (index < 0) {
+            return "The table is full.";
+        }
+        int number = 1;
+        for (TableSeat seat : seats) {
+            if (seat != null && seat.bot) {
+                number++;
+            }
+        }
+        TableSeat bot = new TableSeat(UUID.randomUUID(), "Bot " + number, config().pokerMaxBuyIn(), true);
+        seats[index] = bot;
+        broadcast("<aqua>" + bot.name + "</aqua> <gray>sat down to test with <white>"
+                + Text.chips(bot.stack) + "</white> play chips.</gray>");
+        updateWaiting();
+        render();
+        return null;
+    }
+
+    /** Stands every bot up. Their chips simply vanish, since they were never real. */
+    int removeBots() {
+        int removed = 0;
+        for (TableSeat seat : seats.clone()) {
+            if (seat != null && seat.bot) {
+                leave(seat.id);
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    private boolean hasPeople() {
+        for (TableSeat seat : seats) {
+            if (seat != null && !seat.bot) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ ticks
@@ -207,7 +261,7 @@ public final class PokerTable {
     void tick() {
         emptySeconds = isEmpty() ? emptySeconds + 1 : 0;
         for (TableSeat seat : seats.clone()) {
-            if (seat == null) {
+            if (seat == null || seat.bot) {
                 continue;
             }
             Player player = plugin.getServer().getPlayer(seat.id);
@@ -284,7 +338,7 @@ public final class PokerTable {
     private void startHand() {
         List<Integer> order = new ArrayList<>();
         for (int i = 0; i < seats.length; i++) {
-            if (seats[i] != null && seats[i].stack > 0 && isOnline(seats[i].id)) {
+            if (seats[i] != null && seats[i].stack > 0 && isPresent(seats[i])) {
                 order.add(i);
             }
         }
@@ -347,7 +401,12 @@ public final class PokerTable {
                     lastAsked = acting;
                     turn++;
                     turnSecondsLeft = config().pokerTurnSeconds();
-                    promptTurn(acting);
+                    if (isBot(acting)) {
+                        int askedTurn = turn;
+                        Tasks.later(plugin, BOT_THINK_TICKS, () -> botMove(askedTurn));
+                    } else {
+                        promptTurn(acting);
+                    }
                 }
                 refreshMenus();
             }
@@ -390,6 +449,29 @@ public final class PokerTable {
                 new PokerMenu(plugin, player, this).open();
             }
         });
+    }
+
+    /** A bot always checks when it can and calls when it cannot. */
+    private void botMove(int forTurn) {
+        if (hand == null || state != State.IN_HAND || forTurn != turn) {
+            return;
+        }
+        HandPlayer bot = hand.toAct();
+        if (bot == null || !isBot(bot)) {
+            return;
+        }
+        boolean check = hand.canCheck(bot);
+        long toCall = hand.toCall(bot);
+        hand.checkOrCall();
+        broadcast("<aqua>" + bot.name() + "</aqua> <gray>" + (check ? "checks"
+                : "calls <white>" + Text.chips(toCall) + "</white>") + ".</gray>");
+        playAll(Sound.BLOCK_CHAIN_PLACE, 1.4f);
+        onHandChanged();
+    }
+
+    private boolean isBot(HandPlayer p) {
+        TableSeat seat = seats[p.seat()];
+        return seat != null && seat.bot && seat.id.equals(p.id());
     }
 
     /** A player's choice from the action menu. */
@@ -491,6 +573,10 @@ public final class PokerTable {
         for (int i = 0; i < seats.length; i++) {
             TableSeat seat = seats[i];
             if (seat != null && seat.stack <= 0) {
+                if (seat.bot) {
+                    seats[i] = null;
+                    continue;
+                }
                 if (seat.chair != null) {
                     seat.chair.release();
                 }
@@ -657,6 +743,10 @@ public final class PokerTable {
         boolean handRunning = hand != null && hand.phase() != HoldemHand.Phase.FINISHED;
         if (handRunning) {
             for (HandPlayer p : hand.players()) {
+                TableSeat seat = seats[p.seat()];
+                if (seat != null && seat.bot) {
+                    continue;
+                }
                 long back = p.stack() + p.contributed();
                 plugin.chipBank().give(p.id(), back);
                 refunded += back;
@@ -667,7 +757,7 @@ public final class PokerTable {
             if (seat == null) {
                 continue;
             }
-            if (!handRunning || hand.player(seat.id) == null) {
+            if (!seat.bot && (!handRunning || hand.player(seat.id) == null)) {
                 plugin.chipBank().give(seat.id, seat.stack);
                 refunded += seat.stack;
             }
@@ -713,15 +803,18 @@ public final class PokerTable {
     private int readyCount() {
         int count = 0;
         for (TableSeat seat : seats) {
-            if (seat != null && seat.stack > 0 && isOnline(seat.id)) {
+            if (seat != null && seat.stack > 0 && isPresent(seat)) {
                 count++;
             }
         }
         return count;
     }
 
-    private boolean isOnline(UUID id) {
-        Player player = plugin.getServer().getPlayer(id);
+    private boolean isPresent(TableSeat seat) {
+        if (seat.bot) {
+            return true;
+        }
+        Player player = plugin.getServer().getPlayer(seat.id);
         return player != null && player.isOnline();
     }
 
@@ -747,13 +840,9 @@ public final class PokerTable {
         return isEmpty() && emptySeconds >= EMPTY_SECONDS_BEFORE_CLOSING;
     }
 
+    /** No real players. Bots do not keep a table open. */
     boolean isEmpty() {
-        for (TableSeat seat : seats) {
-            if (seat != null) {
-                return false;
-            }
-        }
-        return true;
+        return !hasPeople();
     }
 
     /** Chips the player has in front of them right now. */

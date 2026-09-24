@@ -20,6 +20,7 @@ commands:
       /casino chips sell <diamonds|all> - cash chips out into diamonds
       /casino balance - show your chip balance
       /casino leave - leave your current game and refund open bets
+      /casino pokerbot [remove] - seat a test bot at your poker table
     aliases: [cas]
 
 permissions:

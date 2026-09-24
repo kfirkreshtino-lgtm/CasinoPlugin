@@ -6,6 +6,7 @@ import com.kfir.casino.command.CasinoTabCompleter;
 import com.kfir.casino.economy.ChipBank;
 import com.kfir.casino.game.GameManager;
 import com.kfir.casino.game.poker.PokerHook;
+import com.kfir.casino.game.poker.DealerListener;
 import com.kfir.casino.game.poker.HoldemPokerHook;
 import com.kfir.casino.gui.CashierMenu;
 import com.kfir.casino.gui.MenuListener;
@@ -68,6 +69,7 @@ public final class CasinoPlugin extends JavaPlugin implements CasinoAPI {
         getServer().getPluginManager().registerEvents(new MenuListener(), this);
         getServer().getPluginManager().registerEvents(new StationListener(this), this);
         getServer().getPluginManager().registerEvents(games, this);
+        getServer().getPluginManager().registerEvents(new DealerListener(), this);
 
         PluginCommand command = getCommand("casino");
         if (command != null) {

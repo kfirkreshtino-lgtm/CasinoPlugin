@@ -2,6 +2,7 @@ package com.kfir.casino.command;
 
 import com.kfir.casino.CasinoPlugin;
 import com.kfir.casino.economy.ExchangeResult;
+import com.kfir.casino.game.poker.HoldemPokerHook;
 import com.kfir.casino.station.Station;
 import com.kfir.casino.station.StationType;
 import com.kfir.casino.util.Text;
@@ -37,6 +38,7 @@ public final class CasinoCommand implements CommandExecutor {
             case "chips" -> chips(sender, args);
             case "balance", "bal" -> balance(sender);
             case "leave" -> leave(sender);
+            case "pokerbot" -> pokerBot(sender, args);
             default -> help(sender);
         }
         return true;
@@ -235,6 +237,30 @@ public final class CasinoCommand implements CommandExecutor {
                 + "</white> chips</gray>");
     }
 
+    /** Test helper: seats a bot at your poker table so a hand can be played alone. */
+    private void pokerBot(CommandSender sender, String[] args) {
+        if (!require(sender, "casino.admin") || !(sender instanceof Player player)) {
+            return;
+        }
+        if (!(plugin.pokerHook() instanceof HoldemPokerHook poker)) {
+            plugin.message(player, "<red>Bots only work with the built-in poker.</red>");
+            return;
+        }
+        if (args.length > 1 && args[1].equalsIgnoreCase("remove")) {
+            int removed = poker.removeBots(player);
+            plugin.message(player, "<gray>Removed <white>" + removed + "</white> bots.</gray>");
+            return;
+        }
+        String error = poker.addBot(player);
+        if (error != null) {
+            plugin.message(player, "<red>" + error + "</red>");
+        } else {
+            plugin.message(player, "<green>A test bot sat down. It always checks or calls, and its "
+                    + "chips are play money.</green> <gray>Remove it with "
+                    + "<white>/casino pokerbot remove</white>.</gray>");
+        }
+    }
+
     private void leave(CommandSender sender) {
         if (!require(sender, "casino.use") || !(sender instanceof Player player)) {
             return;
@@ -264,6 +290,7 @@ public final class CasinoCommand implements CommandExecutor {
             plugin.message(sender, "<gray>/casino remove <dark_gray>- undo the build</dark_gray></gray>");
             plugin.message(sender, "<gray>/casino station add|remove|list</gray>");
             plugin.message(sender, "<gray>/casino reload</gray>");
+            plugin.message(sender, "<gray>/casino pokerbot [remove] <dark_gray>- test poker alone</dark_gray></gray>");
         }
     }
 

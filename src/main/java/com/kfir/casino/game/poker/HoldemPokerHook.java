@@ -54,6 +54,30 @@ public final class HoldemPokerHook implements PokerHook {
         table.open(player);
     }
 
+    /** Seats a test bot at the table the player is sitting at. Returns an error, or null. */
+    public String addBot(Player player) {
+        PokerTable table = tableOf(player.getUniqueId());
+        if (table == null) {
+            return "Sit down at a poker table first.";
+        }
+        return table.addBot();
+    }
+
+    /** Removes the bots from the player's table and returns how many left. */
+    public int removeBots(Player player) {
+        PokerTable table = tableOf(player.getUniqueId());
+        return table == null ? 0 : table.removeBots();
+    }
+
+    private PokerTable tableOf(UUID playerId) {
+        for (PokerTable table : tables.values()) {
+            if (table.isSeated(playerId)) {
+                return table;
+            }
+        }
+        return null;
+    }
+
     @Override
     public long leave(UUID playerId) {
         long refunded = 0;
