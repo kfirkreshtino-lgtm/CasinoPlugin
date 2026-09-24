@@ -9,6 +9,7 @@ import com.kfir.casino.table.Dealers;
 import com.kfir.casino.table.Seat;
 import com.kfir.casino.util.Tasks;
 import com.kfir.casino.util.Text;
+import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -57,6 +58,11 @@ public final class PokerTable {
     private static final int FOLDED_OUT_TICKS = 50;
     /** Short delay before the action menu opens, so the player sees the last move first. */
     private static final int MENU_DELAY_TICKS = 10;
+    /**
+     * Time to look at new cards on the table, after the deal and after the flop, turn and
+     * river, before any menu covers the screen again.
+     */
+    private static final int CARD_VIEW_TICKS = 80;
     /** Players further than this from the table are stood up. */
     private static final double LEAVE_DISTANCE_SQUARED = 10 * 10;
     /** An empty table is packed away after this long, which leaves time to pick a buy-in. */
@@ -99,6 +105,8 @@ public final class PokerTable {
     private int emptySeconds;
     private boolean closed;
     private LivingEntity dealer;
+    /** Server tick until which players are looking at newly shown cards. */
+    private int viewingUntil;
 
     PokerTable(CasinoPlugin plugin, HoldemPokerHook hook, Station station) {
         this.plugin = plugin;
@@ -296,7 +304,7 @@ public final class PokerTable {
 
     private void turnClock() {
         HandPlayer acting = hand.toAct();
-        if (acting == null) {
+        if (acting == null || viewingTicksLeft() > 0) {
             return;
         }
         turnSecondsLeft--;
@@ -381,6 +389,7 @@ public final class PokerTable {
         }
         view.moveButton(buttonSeat);
         dealerGesture();
+        showNewCards();
         broadcast("<gold>New hand.</gold> <aqua>" + seats[buttonSeat].name + "</aqua> <gray>has the button. "
                 + "Blinds <white>" + Text.chips(config.pokerSmallBlind()) + "/"
                 + Text.chips(config.pokerBigBlind()) + "</white>.</gray>");
@@ -403,7 +412,7 @@ public final class PokerTable {
                     turnSecondsLeft = config().pokerTurnSeconds();
                     if (isBot(acting)) {
                         int askedTurn = turn;
-                        Tasks.later(plugin, BOT_THINK_TICKS, () -> botMove(askedTurn));
+                        Tasks.later(plugin, Math.max(BOT_THINK_TICKS, viewingTicksLeft()), () -> botMove(askedTurn));
                     } else {
                         promptTurn(acting);
                     }
@@ -424,6 +433,7 @@ public final class PokerTable {
                         if (hand.phase() != HoldemHand.Phase.FINISHED) {
                             playAll(Sound.ITEM_BOOK_PAGE_TURN, 1.0f);
                             dealerGesture();
+                            showNewCards();
                         }
                         onHandChanged();
                     });
@@ -444,7 +454,7 @@ public final class PokerTable {
         }
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.4f);
         int askedTurn = turn;
-        Tasks.later(plugin, MENU_DELAY_TICKS, () -> {
+        Tasks.later(plugin, Math.max(MENU_DELAY_TICKS, viewingTicksLeft()), () -> {
             if (askedTurn == turn && state == State.IN_HAND && player.isOnline()) {
                 new PokerMenu(plugin, player, this).open();
             }
@@ -510,6 +520,27 @@ public final class PokerTable {
             return;
         }
         act(player, forTurn, Move.RAISE, amount);
+    }
+
+    /**
+     * New cards just landed: close every poker menu at the table so the cards can be seen,
+     * and hold the next menu back until the players have had a look.
+     */
+    private void showNewCards() {
+        viewingUntil = Bukkit.getCurrentTick() + CARD_VIEW_TICKS;
+        for (TableSeat seat : seats) {
+            if (seat == null || seat.bot) {
+                continue;
+            }
+            Player player = plugin.getServer().getPlayer(seat.id);
+            if (player != null && player.getOpenInventory().getTopInventory().getHolder() instanceof PokerMenu) {
+                player.closeInventory();
+            }
+        }
+    }
+
+    private int viewingTicksLeft() {
+        return Math.max(0, viewingUntil - Bukkit.getCurrentTick());
     }
 
     /** A player's choice from the action menu. */
